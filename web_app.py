@@ -242,11 +242,38 @@ async def chat(
     async with session.lock:
         trace_id = uuid.uuid4().hex[:12]
         session.trace.id = trace_id
-        with dspy.context(lm=model):
-            result = await session.response_generator.acall(
-                transcript=session.past_messages,
-                question=question,
-                existing_categories=session.existing_categories,
+        try:
+            with dspy.context(lm=model):
+                result = await session.response_generator.acall(
+                    transcript=session.past_messages,
+                    question=question,
+                    existing_categories=session.existing_categories,
+                )
+        except Exception as e:
+            logger.exception("Chat generation failed")
+            kind = type(e).__name__
+            rate_limited = (
+                "RateLimit" in kind
+                or "RESOURCE_EXHAUSTED" in str(e)
+                or "429" in str(e)
+            )
+            # Shows up on the dashboard so a demo failure is diagnosable
+            # without opening the server logs.
+            await log_event(
+                user_id,
+                trace_id,
+                "error",
+                message=f"{kind}: {str(e)[:200]}",
+                question=question[:600],
+            )
+            if rate_limited:
+                raise HTTPException(
+                    status_code=429,
+                    detail="The AI model's rate limit was hit. Wait a minute and try again.",
+                )
+            raise HTTPException(
+                status_code=502,
+                detail=f"The AI model request failed ({kind}). Details are in the activity log.",
             )
 
         answer = result.response

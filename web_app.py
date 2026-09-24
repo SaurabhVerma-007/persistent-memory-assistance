@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -6,7 +7,7 @@ from pathlib import Path
 
 import dspy
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from mem.generate_embeddings import generate_embeddings
@@ -23,6 +24,7 @@ from mem.vectordb import (
 BASE_DIR = Path(__file__).parent
 app = FastAPI(title="Mem0 Memory Chatbot")
 sessions: dict[str, "ChatSession"] = {}
+logger = logging.getLogger(__name__)
 
 
 @app.on_event("startup")
@@ -68,6 +70,7 @@ async def create_session() -> tuple[str, ChatSession]:
     session_id = uuid.uuid4().hex
     user_id = uuid.uuid4().int % 2_000_000_000
     session = ChatSession(user_id=user_id)
+    await create_memory_collection()
     session.existing_categories = await get_all_categories(user_id=user_id)
     session.response_generator = create_response_generator(user_id)
     sessions[session_id] = session
@@ -83,6 +86,15 @@ async def get_session(session_id: str | None) -> tuple[str, ChatSession]:
 @app.get("/healthz")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_error(request, exception):
+    logger.exception("Unhandled request error", exc_info=exception)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "The assistant could not complete that request."},
+    )
 
 
 @app.get("/")

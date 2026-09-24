@@ -46,6 +46,28 @@ $env:MEM0_API_KEY = "your-mem0-api-key"
 
 These environment variables only apply to the current PowerShell session. Use your normal secret-management approach for persistent configuration.
 
+## Environment Variables and Secrets
+
+The committed `.env.example` file documents variable names and safe placeholder values. It does not contain working credentials, and the application does not load `.env` files automatically.
+
+| Variable | Used by | Required for |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Gemini generation and embeddings | Custom pipeline, local Qdrant example, and Mem0 Cloud example |
+| `MEM0_API_KEY` | Mem0 `MemoryClient` | Mem0 Cloud example only |
+| `QDRANT_URL` | Qdrant client | Hosted Qdrant; defaults to `http://localhost:6333` locally |
+| `QDRANT_API_KEY` | Qdrant client | Hosted Qdrant when authentication is enabled |
+| `GEMINI_MODEL` | Custom DSPy pipeline | Optional; defaults to `gemini/gemini-2.0-flash` |
+| `QDRANT_COLLECTION` | Custom memory collection | Optional; defaults to `memories_gemini` |
+
+In PowerShell, check whether a variable is configured without printing the secret:
+
+```powershell
+if ($env:GEMINI_API_KEY) { "GEMINI_API_KEY is set" } else { "GEMINI_API_KEY is not set" }
+if ($env:QDRANT_API_KEY) { "QDRANT_API_KEY is set" } else { "QDRANT_API_KEY is not set" }
+```
+
+For Render, add the real values under **Service > Environment**. Never commit real keys to GitHub or paste them into this README.
+
 ## Quick Start: Custom Pipeline
 
 The root implementation stores memories in Qdrant and uses user IDs to isolate records.

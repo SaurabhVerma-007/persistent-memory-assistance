@@ -3,115 +3,169 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Memory Chat</title>
+    <title>MEMORY_CHAT</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=VT323&display=swap" rel="stylesheet" />
     <style>
       :root {
         color-scheme: dark;
-        --ink: #f4f1e8;
-        --muted: #a8aaa5;
-        --panel: rgba(28, 35, 34, 0.78);
-        --line: rgba(214, 224, 207, 0.14);
-        --accent: #d6f36a;
-        --accent-ink: #152014;
-        --user: #31463f;
-        --c-retrieve: #6cb8ff;
-        --c-candidates: #a5a8ff;
-        --c-add: #8be28b;
-        --c-update: #ffc857;
-        --c-delete: #ff7a7a;
-        --c-noop: #a8aaa5;
-        --c-summary: #d3a9ff;
-        --c-error: #ff7a7a;
+        --bg: #040805;
+        --panel: #07110a;
+        --fg: #39ff6a;        /* phosphor green */
+        --ink: #c4ffd2;       /* assistant text */
+        --muted: #5fa873;
+        --line: rgba(57, 255, 106, 0.3);
+        --c-retrieve: #5fd7ff;
+        --c-candidates: #9aa7ff;
+        --c-add: #39ff6a;
+        --c-update: #ffb000;
+        --c-delete: #ff5f56;
+        --c-noop: #7c9c86;
+        --c-summary: #c792ea;
+        --c-error: #ff5f56;
+        --mono: "IBM Plex Mono", "Courier New", monospace;
+        --crt: "VT323", "IBM Plex Mono", "Courier New", monospace;
       }
-      * { box-sizing: border-box; }
+      * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: #1f7a3a transparent; }
+      ::selection { background: var(--fg); color: var(--bg); }
       .hidden { display: none !important; }
+
       body {
         margin: 0;
         min-height: 100vh;
-        color: var(--ink);
-        background: radial-gradient(circle at 15% 10%, #334c43 0, transparent 32%), linear-gradient(135deg, #101716, #18211f 58%, #28352e);
-        font-family: "DM Sans", sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+        font: 400 14.5px/1.55 var(--mono);
+        text-shadow: 0 0 5px rgba(57, 255, 106, 0.25);
       }
-      button { font-family: inherit; cursor: pointer; }
-      button:disabled { cursor: wait; opacity: .55; }
-      .primary { border: 0; border-radius: 6px; padding: 0 20px; min-height: 44px; color: var(--accent-ink); background: var(--accent); font-weight: 700; font-size: .95rem; }
-      .ghost { padding: 6px 12px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; font-weight: 500; font-size: .8rem; }
-      .ghost:hover:not(:disabled) { color: var(--ink); border-color: var(--muted); }
-      .eyebrow { margin: 0 0 10px; color: var(--accent); font-size: .76rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-      h1 { margin: 0; font: 700 clamp(2rem, 5vw, 3.6rem)/.95 "Space Grotesk", sans-serif; }
-      h2 { margin: 0; font: 600 1.05rem "Space Grotesk", sans-serif; }
-      .muted { color: var(--muted); }
-      input, textarea { border: 1px solid var(--line); border-radius: 6px; padding: 13px 14px; color: var(--ink); background: rgba(0, 0, 0, .2); font: inherit; width: 100%; }
-      input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+      /* CRT scanlines + vignette (purely visual, never blocks clicks) */
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 9999;
+        background:
+          repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,.16) 3px),
+          radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,.45) 100%);
+      }
 
-      /* ---- auth ---- */
+      button { font-family: inherit; font-size: inherit; cursor: pointer; text-shadow: inherit; }
+      button:disabled { cursor: wait; opacity: .5; }
+      button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 1px dashed var(--fg); outline-offset: 3px; }
+
+      /* square, bracketed buttons: [ like this ] */
+      .primary, .ghost, .tab, .auth-tabs button {
+        color: var(--fg); background: transparent; border: 0; padding: 4px 6px; border-radius: 0;
+      }
+      .primary::before, .ghost::before, .tab::before, .auth-tabs button::before { content: "[ "; color: var(--muted); }
+      .primary::after, .ghost::after, .tab::after, .auth-tabs button::after { content: " ]"; color: var(--muted); }
+      .primary { font-weight: 700; }
+      .ghost { color: var(--muted); }
+      .primary:hover:not(:disabled), .ghost:hover:not(:disabled), .tab:hover, .auth-tabs button:hover {
+        background: var(--fg); color: var(--bg); text-shadow: none;
+      }
+      .primary:hover::before, .primary:hover::after, .ghost:hover::before, .ghost:hover::after,
+      .tab:hover::before, .tab:hover::after, .auth-tabs button:hover::before, .auth-tabs button:hover::after { color: var(--bg); }
+      .tab.active, .auth-tabs button.active { background: var(--fg); color: var(--bg); text-shadow: none; }
+      .tab.active::before, .tab.active::after, .auth-tabs button.active::before, .auth-tabs button.active::after { color: var(--bg); }
+
+      h1 { margin: 0; font: 400 clamp(2.4rem, 6vw, 4rem)/1 var(--crt); letter-spacing: .04em; text-shadow: 0 0 10px rgba(57,255,106,.55); }
+      h2 { margin: 0; font: 700 .9rem var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+      .eyebrow { margin: 0 0 6px; color: var(--muted); font-size: .8rem; }
+      .eyebrow::before { content: "# "; }
+      .cursor { animation: blink 1.1s steps(1) infinite; }
+      @keyframes blink { 50% { opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+
+      input, textarea {
+        width: 100%; color: var(--fg); background: transparent; border: 0; border-radius: 0;
+        font: inherit; text-shadow: inherit; caret-color: var(--fg);
+      }
+      input::placeholder, textarea::placeholder { color: var(--muted); opacity: .7; }
+
+      /* ---- login ---- */
       .auth { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
-      .auth-card { width: min(400px, 100%); padding: 28px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 24px 80px rgba(0,0,0,.24); backdrop-filter: blur(18px); }
-      .auth-tabs { display: flex; gap: 8px; margin: 18px 0; }
-      .auth-tabs button { flex: 1; padding: 9px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; font-weight: 600; }
-      .auth-tabs button.active { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
-      .auth form { display: flex; flex-direction: column; gap: 12px; }
-      .auth-error { min-height: 1.2em; margin: 0; color: var(--c-error); font-size: .88rem; }
+      .auth-card { width: min(480px, 100%); padding: 24px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 0 40px rgba(57,255,106,.08); }
+      .auth-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 16px 0 18px; }
+      .auth form { display: flex; flex-direction: column; gap: 10px; }
+      .field { display: flex; align-items: center; gap: 10px; border-bottom: 1px dashed var(--line); padding: 4px 0; }
+      .field span { flex-shrink: 0; width: 10ch; color: var(--muted); }
+      .auth-error { min-height: 1.5em; margin: 0; color: var(--c-error); font-size: .88rem; }
+      .auth-error:not(:empty)::before { content: "! "; }
+      .auth-note { margin: 16px 0 0; color: var(--muted); font-size: .78rem; }
+      .auth-note::before { content: "# "; }
 
       /* ---- app ---- */
-      .wrap { width: min(1400px, 100%); margin: 0 auto; padding: 24px 20px; }
-      .top { display: flex; justify-content: space-between; align-items: end; gap: 16px; padding-bottom: 20px; }
-      .who { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: .9rem; }
-      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-      .panel { display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 540px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 24px 80px rgba(0,0,0,.24); backdrop-filter: blur(18px); overflow: hidden; }
-      .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
-      .head-actions { display: flex; align-items: center; gap: 12px; }
-      .status { color: var(--muted); font-size: .82rem; }
+      .wrap { width: min(1400px, 100%); margin: 0 auto; padding: 22px 20px; }
+      .top { display: flex; justify-content: space-between; align-items: end; gap: 16px; padding-bottom: 18px; }
+      .who { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .85rem; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+      .panel { display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 540px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 0 40px rgba(57,255,106,.06); overflow: hidden; }
+      .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); background: rgba(57,255,106,.06); }
+      .panel-head h2::before { content: "── "; color: var(--muted); }
+      .panel-head h2::after { content: " ──"; color: var(--muted); }
+      .head-actions { display: flex; align-items: center; gap: 10px; }
+      .status { color: var(--muted); font-size: .8rem; }
 
-      #messages { display: flex; flex: 1; flex-direction: column; gap: 12px; overflow: auto; padding: 18px; }
-      .message { max-width: 85%; padding: 12px 15px; border: 1px solid var(--line); border-radius: 8px; line-height: 1.55; white-space: pre-wrap; }
-      .message.assistant { align-self: flex-start; background: rgba(255,255,255,.045); }
-      .message.user { align-self: flex-end; background: var(--user); }
-      .empty { margin: auto; max-width: 380px; color: var(--muted); text-align: center; line-height: 1.6; }
-      #chat-form { display: flex; gap: 10px; border-top: 1px solid var(--line); padding: 14px; }
-      #chat-form textarea { min-height: 46px; max-height: 140px; resize: vertical; }
+      /* chat log */
+      #messages { display: flex; flex: 1; flex-direction: column; gap: 10px; overflow: auto; padding: 14px 16px; }
+      .message { max-width: 100%; white-space: pre-wrap; word-break: break-word; }
+      .message.user { color: var(--fg); }
+      .message.user::before { content: "> "; color: var(--muted); }
+      .message.assistant { color: var(--ink); }
+      .message.assistant::before { content: "ai: "; color: var(--muted); }
+      .empty { margin: auto; max-width: 420px; color: var(--muted); text-align: center; line-height: 1.6; }
+      #chat-form { display: flex; align-items: flex-start; gap: 8px; border-top: 1px dashed var(--line); padding: 10px 14px; }
+      .prompt { padding-top: 5px; color: var(--fg); font-weight: 700; }
+      #chat-form textarea { min-height: 34px; max-height: 140px; resize: vertical; padding: 5px 0; }
 
-      .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 14px 18px 4px; }
-      .stat { padding: 10px 8px; border: 1px solid var(--line); border-radius: 6px; text-align: center; background: rgba(255,255,255,.03); }
-      .stat b { display: block; font: 700 1.4rem "Space Grotesk", sans-serif; }
-      .stat span { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; }
-      .stat.add b { color: var(--c-add); } .stat.update b { color: var(--c-update); } .stat.delete b { color: var(--c-delete); } .stat.retrieve b { color: var(--c-retrieve); }
-      .tabs { display: flex; gap: 6px; padding: 12px 18px 0; }
-      .tab { padding: 7px 14px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; font-weight: 600; font-size: .85rem; }
-      .tab.active { color: var(--ink); border-color: var(--accent); }
-      .scroll { flex: 1; overflow: auto; padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+      /* stats */
+      .stats { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px 4px; }
+      .stat { display: flex; align-items: baseline; gap: 8px; padding: 3px 10px; border: 1px solid var(--line); }
+      .stat span { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
+      .stat b { font-weight: 700; font-size: 1.05rem; }
+      .stat.add b { color: var(--c-add); } .stat.update b { color: var(--c-update); }
+      .stat.delete b { color: var(--c-delete); } .stat.retrieve b { color: var(--c-retrieve); }
+      .tabs { display: flex; gap: 4px; padding: 10px 14px 0; }
+      .scroll { flex: 1; overflow: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
 
-      .group { flex-shrink: 0; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.03); overflow: hidden; }
-      .group-head { display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: rgba(0,0,0,.15); }
-      .group-title { font-weight: 600; font-size: .92rem; line-height: 1.4; word-break: break-word; }
+      /* activity log */
+      .group { flex-shrink: 0; border: 1px solid var(--line); overflow: hidden; }
+      .group-head { display: flex; justify-content: space-between; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: rgba(57,255,106,.06); }
+      .group-title { font-weight: 500; word-break: break-word; }
+      .group-title::before { content: "$ "; color: var(--muted); }
       .group-meta { flex-shrink: 0; text-align: right; color: var(--muted); font-size: .75rem; }
-      .chip { display: inline-block; margin: 4px 4px 0 0; padding: 2px 8px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: .72rem; }
-      .chip.save { color: var(--c-add); border-color: var(--c-add); }
+      .chip { display: inline-block; margin: 2px 8px 0 0; color: var(--muted); font-size: .78rem; }
+      .chip::before { content: "#"; }
+      .chip.save { color: var(--c-add); }
+      .chip.save::before { content: "*"; }
       .group-body { display: flex; flex-direction: column; }
-      .row { display: flex; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line); }
+      .row { display: flex; gap: 10px; padding: 6px 10px; border-top: 1px dashed var(--line); }
       .group-body .row:first-child { border-top: 0; }
-      .badge { flex-shrink: 0; align-self: flex-start; min-width: 74px; padding: 2px 6px; border-radius: 4px; border: 1px solid currentColor; font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-align: center; }
+      .badge { flex-shrink: 0; min-width: 12ch; font-weight: 700; letter-spacing: .04em; }
+      .badge::before { content: "["; opacity: .6; } .badge::after { content: "]"; opacity: .6; }
       .badge.retrieve { color: var(--c-retrieve); } .badge.candidates { color: var(--c-candidates); } .badge.add { color: var(--c-add); }
       .badge.update { color: var(--c-update); } .badge.delete { color: var(--c-delete); } .badge.noop { color: var(--c-noop); }
       .badge.summary { color: var(--c-summary); } .badge.error { color: var(--c-error); }
-      .row-body { min-width: 0; font-size: .88rem; line-height: 1.5; word-break: break-word; }
+      .row-body { min-width: 0; word-break: break-word; }
+      .muted { color: var(--muted); }
       .old { color: var(--muted); text-decoration: line-through; }
-      .arrow { color: var(--c-update); margin: 0 4px; }
-      .mem-list { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
-      .mem-list li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 8px; border-radius: 4px; background: rgba(0,0,0,.18); }
-      .score { flex-shrink: 0; color: var(--c-retrieve); font-variant-numeric: tabular-nums; font-size: .78rem; }
+      .arrow { color: var(--c-update); margin: 0 6px; }
+      .mem-list { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+      .mem-list li { display: flex; justify-content: space-between; gap: 12px; }
+      .mem-list li::before { content: "- "; color: var(--muted); }
+      .mem-list li span:first-child { flex: 1; }
+      .score { flex-shrink: 0; color: var(--c-retrieve); font-variant-numeric: tabular-nums; }
 
-      .mem-card { flex-shrink: 0; padding: 11px 13px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.03); }
-      .mem-card .date { margin-top: 6px; color: var(--muted); font-size: .72rem; }
+      .mem-card { flex-shrink: 0; padding: 8px 10px; border: 1px solid var(--line); }
+      .mem-card .date { margin-top: 4px; color: var(--muted); font-size: .74rem; }
 
       @media (max-width: 900px) {
         .grid { grid-template-columns: 1fr; }
         .panel { height: 80vh; }
         .top { flex-direction: column; align-items: start; }
-        .stats { grid-template-columns: repeat(3, 1fr); }
       }
     </style>
   </head>
@@ -119,19 +173,19 @@
     <!-- ================= LOGIN ================= -->
     <div id="auth-view" class="auth hidden">
       <div class="auth-card">
-        <p class="eyebrow">Long-term memory assistant</p>
-        <h1>Memory Chat</h1>
+        <p class="eyebrow">long-term memory terminal</p>
+        <h1>MEMORY_CHAT<span class="cursor">█</span></h1>
         <div class="auth-tabs">
-          <button type="button" class="active" data-auth-mode="login">Sign in</button>
-          <button type="button" data-auth-mode="signup">Create account</button>
+          <button type="button" class="active" data-auth-mode="login">sign in</button>
+          <button type="button" data-auth-mode="signup">create account</button>
         </div>
         <form id="auth-form">
-          <input id="username" placeholder="Username" autocomplete="username" maxlength="32" required />
-          <input id="password" type="password" placeholder="Password" autocomplete="current-password" maxlength="128" required />
+          <label class="field"><span>login:</span><input id="username" autocomplete="username" maxlength="32" required /></label>
+          <label class="field"><span>password:</span><input id="password" type="password" autocomplete="current-password" maxlength="128" required /></label>
           <p class="auth-error" id="auth-error" role="alert"></p>
-          <button id="auth-submit" class="primary" type="submit">Sign in</button>
+          <button id="auth-submit" class="primary" type="submit" style="align-self:flex-start">sign in</button>
         </form>
-        <p class="muted" style="font-size:.8rem;margin:14px 0 0;">Every account has its own private memory. Passwords must be at least 8 characters.</p>
+        <p class="auth-note">every account has its own private memory. passwords: 8+ characters.</p>
       </div>
     </div>
 
@@ -139,43 +193,47 @@
     <div id="app-view" class="hidden">
       <div class="wrap">
         <header class="top">
-          <div><p class="eyebrow">Long-term memory assistant</p><h1>Memory Chat</h1></div>
-          <div class="who"><span id="who"></span><button id="logout" class="ghost" type="button">Sign out</button></div>
+          <div>
+            <p class="eyebrow">long-term memory terminal</p>
+            <h1>MEMORY_CHAT<span class="cursor">█</span></h1>
+          </div>
+          <div class="who"><span id="who"></span><button id="logout" class="ghost" type="button">sign out</button></div>
         </header>
 
         <div class="grid">
           <!-- chat -->
           <section class="panel" aria-label="Chat">
             <div class="panel-head">
-              <h2>Chat</h2>
+              <h2>chat</h2>
               <div class="head-actions">
-                <span class="status" id="status">Ready to remember.</span>
-                <button id="new-chat" class="ghost" type="button">New conversation</button>
+                <span class="status" id="status">ready.</span>
+                <button id="new-chat" class="ghost" type="button">new conversation</button>
               </div>
             </div>
             <div id="messages"></div>
             <form id="chat-form">
-              <textarea id="question" placeholder="Write a message... (Enter to send)" aria-label="Message" required></textarea>
-              <button id="send" class="primary" type="submit">Send</button>
+              <span class="prompt">&gt;</span>
+              <textarea id="question" placeholder="type a message, Enter to send" aria-label="Message" required></textarea>
+              <button id="send" class="primary" type="submit">send</button>
             </form>
           </section>
 
           <!-- dashboard -->
           <section class="panel" aria-label="Memory dashboard">
             <div class="panel-head">
-              <h2>Memory dashboard</h2>
-              <button id="forget" class="ghost" type="button">Clear my memory</button>
+              <h2>memory dashboard</h2>
+              <button id="forget" class="ghost" type="button">clear my memory</button>
             </div>
             <div class="stats">
-              <div class="stat"><b id="stat-memories">0</b><span>Memories</span></div>
-              <div class="stat retrieve"><b id="stat-retrieve">0</b><span>Retrieved</span></div>
-              <div class="stat add"><b id="stat-add">0</b><span>Added</span></div>
-              <div class="stat update"><b id="stat-update">0</b><span>Updated</span></div>
-              <div class="stat delete"><b id="stat-delete">0</b><span>Deleted</span></div>
+              <div class="stat"><span>memories</span><b id="stat-memories">0</b></div>
+              <div class="stat retrieve"><span>retrieved</span><b id="stat-retrieve">0</b></div>
+              <div class="stat add"><span>added</span><b id="stat-add">0</b></div>
+              <div class="stat update"><span>updated</span><b id="stat-update">0</b></div>
+              <div class="stat delete"><span>deleted</span><b id="stat-delete">0</b></div>
             </div>
             <div class="tabs">
-              <button class="tab active" type="button" data-tab="activity">Live activity</button>
-              <button class="tab" type="button" data-tab="store">Memory store</button>
+              <button class="tab active" type="button" data-tab="activity">live activity</button>
+              <button class="tab" type="button" data-tab="store">memory store</button>
             </div>
             <div id="activity" class="scroll"></div>
             <div id="store" class="scroll hidden"></div>
@@ -196,7 +254,7 @@
       }
       function note(text) { return el("p", "empty", text); }
 
-      const CHAT_EMPTY = "Tell me something about yourself, then ask about it later. Try a new conversation and ask again: the memory stays.";
+      const CHAT_EMPTY = "Tell me something about yourself, then ask about it later. Start a new conversation and ask again: the memory stays.";
       const ACTIVITY_EMPTY = "Activity appears here as the assistant searches, adds, updates and deletes memories.";
 
       let authMode = "login";
@@ -243,7 +301,7 @@
         authMode = mode;
         document.querySelectorAll("[data-auth-mode]").forEach((b) =>
           b.classList.toggle("active", b.dataset.authMode === mode));
-        $("#auth-submit").textContent = mode === "login" ? "Sign in" : "Create account";
+        $("#auth-submit").textContent = mode === "login" ? "sign in" : "create account";
         $("#password").autocomplete = mode === "login" ? "current-password" : "new-password";
         $("#password").minLength = mode === "signup" ? 8 : 1;
         $("#auth-error").textContent = "";
@@ -283,11 +341,11 @@
         $("#activity").replaceChildren(note(ACTIVITY_EMPTY));
         $("#store").replaceChildren();
         ["memories", "retrieve", "add", "update", "delete"].forEach((k) => ($(`#stat-${k}`).textContent = "0"));
-        $("#status").textContent = "Ready to remember.";
+        $("#status").textContent = "ready.";
       }
 
       async function startApp(username) {
-        $("#who").textContent = `Signed in as ${username}`;
+        $("#who").textContent = `user: ${username}`;
         resetState();
         showApp();
         await Promise.all([loadHistory(), pollEvents(), loadMemories()]);
@@ -317,15 +375,15 @@
         addMessage("user", question);
         $("#question").value = "";
         $("#send").disabled = true;
-        $("#status").textContent = "Thinking and checking memory...";
+        $("#status").textContent = "thinking, checking memory...";
         try {
           const data = await api("/api/chat", { method: "POST", body: JSON.stringify({ question }) });
           addMessage("assistant", data.answer);
-          $("#status").textContent = "Memory is active.";
+          $("#status").textContent = "memory active.";
           pollEvents();
         } catch (err) {
-          addMessage("assistant", `Unable to respond: ${err.message}`);
-          $("#status").textContent = "Connection problem.";
+          addMessage("assistant", `error: ${err.message}`);
+          $("#status").textContent = "connection problem.";
         } finally {
           $("#send").disabled = false;
           $("#question").focus();
@@ -339,7 +397,7 @@
         try {
           await api("/api/chat/reset", { method: "POST" });
           $("#messages").replaceChildren(note("New conversation. Long-term memory is kept: ask about something you told me earlier."));
-          $("#status").textContent = "Conversation reset.";
+          $("#status").textContent = "conversation reset.";
         } catch {}
       });
 
@@ -349,9 +407,9 @@
         try {
           await api("/api/memory", { method: "DELETE" });
           resetState();
-          $("#status").textContent = "Memory cleared.";
+          $("#status").textContent = "memory cleared.";
         } catch (err) {
-          $("#status").textContent = "Could not clear memory.";
+          $("#status").textContent = "could not clear memory.";
         } finally {
           $("#forget").disabled = false;
         }
@@ -408,7 +466,7 @@
           case "update": {
             const line = el("div");
             line.appendChild(el("span", "old", d.old_text));
-            line.appendChild(el("span", "arrow", "→"));
+            line.appendChild(el("span", "arrow", "->"));
             line.appendChild(el("span", "", d.new_text));
             return row("update", line, chips(d.categories));
           }
@@ -455,15 +513,15 @@
         const g = groupFor(ev);
         const time = new Date(ev.ts).toLocaleTimeString();
         if (ev.type === "turn") {
-          g.title.textContent = `You: ${ev.data.question}`;
+          g.title.textContent = ev.data.question;
           g.meta.replaceChildren(
             el("div", "", time),
             el("span", ev.data.save_memory ? "chip save" : "chip",
-               ev.data.save_memory ? "Save requested" : "No save needed"));
+               ev.data.save_memory ? "save requested" : "no save needed"));
           return;
         }
         if (ev.type === "error" && ev.data.question) {
-          g.title.textContent = `You: ${ev.data.question}`;
+          g.title.textContent = ev.data.question;
         }
         const r = buildRow(ev);
         if (r) g.body.appendChild(r);

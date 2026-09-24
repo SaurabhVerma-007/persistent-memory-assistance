@@ -1,0 +1,21 @@
+[project]
+name = "local-qdrant"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { email = "vsaurabh11july@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "google-genai>=2.25.0",
+    "mem0ai>=0.1.118",
+    "qdrant-client==1.19.1",
+]
+
+[project.scripts]
+local-qdrant = "local_qdrant:main"
+
+[build-system]
+requires = ["uv_build>=0.12.18,<0.13.0"]
+build-backend = "uv_build"

@@ -10,6 +10,7 @@ from mem.config import (
     UPDATER_TEMPERATURE,
     make_lm,
 )
+from mem.events import log_event
 from mem.generate_embeddings import generate_embeddings
 from mem.vectordb import (
     EmbeddedMemory,
@@ -64,7 +65,10 @@ class UpdateMemorySignature(dspy.Signature):
 
 
 async def update_memories_agent(
-    user_id: int, messages: list[dict], existing_memories: list[RetrievedMemory]
+    user_id: int,
+    messages: list[dict],
+    existing_memories: list[RetrievedMemory],
+    trace_id: str | None = None,
 ):
     def id_error(memory_id: int) -> str | None:
         if not existing_memories:
@@ -81,7 +85,6 @@ async def update_memories_agent(
         memory_text: A simple, atomic fact about the user.
         categories: Use existing categories or create new ones if required.
         """
-        logger.debug("Adding memory: %s | %s", memory_text, categories)
         embeddings = await generate_embeddings([memory_text], task="document")
         await insert_memories(
             [
@@ -93,6 +96,9 @@ async def update_memories_agent(
                     embedding=embeddings[0],
                 )
             ]
+        )
+        await log_event(
+            user_id, trace_id, "add", text=memory_text, categories=categories
         )
         return f"Memory: '{memory_text}' was added to DB"
 
@@ -107,13 +113,7 @@ async def update_memories_agent(
         """
         if err := id_error(memory_id):
             return err
-        logger.debug(
-            "Updating memory %s: %r -> %r",
-            memory_id,
-            existing_memories[memory_id].memory_text,
-            updated_memory_text,
-        )
-        point_id = existing_memories[memory_id].point_id
+        old = existing_memories[memory_id]
         # Embed first, then overwrite the same point: a failed embedding call
         # can no longer lose the old memory.
         embeddings = await generate_embeddings([updated_memory_text], task="document")
@@ -127,7 +127,15 @@ async def update_memories_agent(
                     embedding=embeddings[0],
                 )
             ],
-            point_ids=[point_id],
+            point_ids=[old.point_id],
+        )
+        await log_event(
+            user_id,
+            trace_id,
+            "update",
+            old_text=old.memory_text,
+            new_text=updated_memory_text,
+            categories=categories,
         )
         return f"Memory {memory_id} has been updated to: '{updated_memory_text}'"
 
@@ -135,6 +143,7 @@ async def update_memories_agent(
         """
         Call this if no action is required
         """
+        await log_event(user_id, trace_id, "noop")
         return "No action done"
 
     async def delete(memory_ids: list[int]):
@@ -149,6 +158,14 @@ async def update_memories_agent(
             return "No valid memory_ids given; nothing was deleted."
         # Map the model's list indices to real Qdrant point ids.
         await delete_records([existing_memories[i].point_id for i in valid])
+        for i in valid:
+            await log_event(
+                user_id,
+                trace_id,
+                "delete",
+                text=existing_memories[i].memory_text,
+                categories=existing_memories[i].categories,
+            )
         return f"Memories {valid} deleted"
 
     memory_updater = dspy.ReAct(
@@ -165,17 +182,36 @@ async def update_memories_agent(
         out = await memory_updater.acall(
             messages=messages, existing_memories=memory_ids
         )
+    await log_event(user_id, trace_id, "summary", text=out.summary)
     return out.summary
 
 
-async def update_memories(user_id: int, messages: list[dict]):
+async def update_memories(
+    user_id: int, messages: list[dict], trace_id: str | None = None
+):
     latest_user_message = [x["content"] for x in messages if x["role"] == "user"][-1]
     embedding = (await generate_embeddings([latest_user_message], task="query"))[0]
 
     retrieved_memories = await search_memories(search_vector=embedding, user_id=user_id)
+    await log_event(
+        user_id,
+        trace_id,
+        "candidates",
+        memories=[
+            {
+                "text": m.memory_text,
+                "score": round(m.score, 3),
+                "categories": m.categories,
+            }
+            for m in retrieved_memories
+        ],
+    )
 
     return await update_memories_agent(
-        user_id=user_id, existing_memories=retrieved_memories, messages=messages
+        user_id=user_id,
+        existing_memories=retrieved_memories,
+        messages=messages,
+        trace_id=trace_id,
     )
 
 

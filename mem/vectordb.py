@@ -7,9 +7,13 @@ from qdrant_client.grpc import Points, ScoredPoint
 from qdrant_client.models import Distance, Filter, VectorParams, models
 import asyncio
 import numpy as np
+import os
 
-client = AsyncQdrantClient(url="http://localhost:6333")
-COLLECTION_NAME = "memories"
+client = AsyncQdrantClient(
+    url=os.getenv("QDRANT_URL", "http://localhost:6333"),
+    api_key=os.getenv("QDRANT_API_KEY") or None,
+)
+COLLECTION_NAME = os.getenv("QDRANT_COLLECTION", "memories_gemini")
 
 
 class EmbeddedMemory(BaseModel):
@@ -33,7 +37,7 @@ async def create_memory_collection():
     if not (await client.collection_exists(COLLECTION_NAME)):
         await client.create_collection(
             collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=64, distance=Distance.DOT),
+            vectors_config=VectorParams(size=768, distance=Distance.DOT),
         )
 
         await client.create_payload_index(

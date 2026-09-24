@@ -1,6 +1,7 @@
 from typing import Dict, List
 import dspy
 import asyncio
+import os
 from rich.console import Console
 from rich.rule import Rule
 
@@ -20,7 +21,10 @@ dspy.configure_cache(
 
 
 model = dspy.LM(
-    model="gpt-5-mini", reasoning_effort="minimal", temperature=1, max_tokens=16000
+    model=os.getenv("GEMINI_MODEL", "gemini/gemini-2.0-flash"),
+    api_key=os.environ.get("GEMINI_API_KEY"),
+    temperature=1,
+    max_tokens=16000,
 )
 
 

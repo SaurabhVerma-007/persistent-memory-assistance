@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Memory Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #f4f1e8;
+        --muted: #a8aaa5;
+        --panel: rgba(28, 35, 34, 0.78);
+        --line: rgba(214, 224, 207, 0.14);
+        --accent: #d6f36a;
+        --accent-ink: #152014;
+        --user: #31463f;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background: radial-gradient(circle at 15% 10%, #334c43 0, transparent 32%), linear-gradient(135deg, #101716, #18211f 58%, #28352e);
+        font-family: "DM Sans", sans-serif;
+      }
+
+      main { width: min(900px, 100%); margin: 0 auto; padding: 32px 20px 24px; }
+      header { display: flex; justify-content: space-between; gap: 20px; align-items: end; padding: 12px 0 26px; }
+      h1 { margin: 0; font: 700 clamp(2rem, 6vw, 4.8rem)/.95 "Space Grotesk", sans-serif; letter-spacing: 0; }
+      .eyebrow { margin: 0 0 10px; color: var(--accent); font-size: .76rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+      .status { color: var(--muted); font-size: .85rem; text-align: right; }
+      .shell { min-height: 68vh; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 24px 80px rgba(0, 0, 0, .24); backdrop-filter: blur(18px); }
+      #messages { display: flex; flex: 1; flex-direction: column; gap: 14px; overflow: auto; padding: 24px; }
+      .message { max-width: 78%; padding: 13px 16px; border: 1px solid var(--line); border-radius: 8px; line-height: 1.55; white-space: pre-wrap; }
+      .message.assistant { align-self: flex-start; background: rgba(255, 255, 255, .045); }
+      .message.user { align-self: flex-end; background: var(--user); }
+      .empty { margin: auto; max-width: 440px; color: var(--muted); text-align: center; line-height: 1.6; }
+      form { display: flex; gap: 10px; border-top: 1px solid var(--line); padding: 16px; }
+      textarea { min-height: 48px; max-height: 150px; flex: 1; resize: vertical; border: 1px solid var(--line); border-radius: 6px; padding: 13px 14px; color: var(--ink); background: rgba(0, 0, 0, .2); font: inherit; }
+      textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+      button { align-self: stretch; border: 0; border-radius: 6px; padding: 0 20px; color: var(--accent-ink); background: var(--accent); font: 700 .95rem "DM Sans", sans-serif; cursor: pointer; }
+      button:disabled { cursor: wait; opacity: .55; }
+      @media (max-width: 600px) { main { padding: 20px 12px 12px; } header { align-items: start; flex-direction: column; } .status { text-align: left; } .shell { min-height: 74vh; } .message { max-width: 90%; } form { flex-direction: column; } button { min-height: 48px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div><p class="eyebrow">Long-term memory assistant</p><h1>Memory Chat</h1></div>
+        <div class="status" id="status">Ready to remember.</div>
+      </header>
+      <section class="shell" aria-label="Chat">
+        <div id="messages"><p class="empty">Tell me something about yourself, then ask about it later. Your session gets its own memory record.</p></div>
+        <form id="chat-form">
+          <textarea id="question" placeholder="Write a message..." aria-label="Message" required></textarea>
+          <button id="send" type="submit">Send</button>
+        </form>
+      </section>
+    </main>
+    <script>
+      const form = document.querySelector("#chat-form");
+      const input = document.querySelector("#question");
+      const messages = document.querySelector("#messages");
+      const status = document.querySelector("#status");
+      const send = document.querySelector("#send");
+      let sessionId = localStorage.getItem("mem0-session-id");
+
+      function addMessage(role, text) {
+        const empty = messages.querySelector(".empty");
+        if (empty) empty.remove();
+        const message = document.createElement("div");
+        message.className = `message ${role}`;
+        message.textContent = text;
+        messages.appendChild(message);
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const question = input.value.trim();
+        if (!question) return;
+        addMessage("user", question);
+        input.value = "";
+        send.disabled = true;
+        status.textContent = "Thinking and checking memory...";
+        try {
+          const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question, session_id: sessionId }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "The request failed.");
+          sessionId = data.session_id;
+          localStorage.setItem("mem0-session-id", sessionId);
+          addMessage("assistant", data.answer);
+          status.textContent = "Memory is active.";
+        } catch (error) {
+          addMessage("assistant", `Unable to respond: ${error.message}`);
+          status.textContent = "Connection problem.";
+        } finally {
+          send.disabled = false;
+          input.focus();
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,20 +1,38 @@
+import logging
+from datetime import datetime, timezone
+
 import dspy
 from pydantic import BaseModel
-from datetime import datetime
+
+from mem.config import (
+    UPDATER_MAX_TOKENS,
+    UPDATER_MODEL,
+    UPDATER_TEMPERATURE,
+    make_lm,
+)
 from mem.generate_embeddings import generate_embeddings
 from mem.vectordb import (
     EmbeddedMemory,
     RetrievedMemory,
     delete_records,
-    fetch_all_user_records,
     insert_memories,
     search_memories,
 )
+
+logger = logging.getLogger(__name__)
 
 dspy.configure_cache(
     enable_disk_cache=False,
     enable_memory_cache=False,
 )
+
+updater_lm = make_lm(
+    UPDATER_MODEL, temperature=UPDATER_TEMPERATURE, max_tokens=UPDATER_MAX_TOKENS
+)
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="minutes")
 
 
 class MemoryWithIds(BaseModel):
@@ -33,7 +51,7 @@ class UpdateMemorySignature(dspy.Signature):
     - DELETE: remove memory items from the database that aren't required anymore due to new information
     - NOOP: No need to take any action
 
-    If no action is required you can finish.
+    Only store facts the USER stated about themselves. If no action is required you can finish.
 
     Think less and do actions.
     """
@@ -48,86 +66,90 @@ class UpdateMemorySignature(dspy.Signature):
 async def update_memories_agent(
     user_id: int, messages: list[dict], existing_memories: list[RetrievedMemory]
 ):
-
-    def get_point_id_from_memory_id(memory_id):
-        return existing_memories[memory_id].point_id
+    def id_error(memory_id: int) -> str | None:
+        if not existing_memories:
+            return "There are no existing memories to change. Use add_memory instead."
+        if not 0 <= memory_id < len(existing_memories):
+            return f"Invalid memory_id {memory_id}. Valid ids: 0 to {len(existing_memories) - 1}."
+        return None
 
     async def add_memory(memory_text: str, categories: list[str]) -> str:
         """
-        Add the new_memory into the database.
-        No need to pass any args.
-        """
-        print("Adding memory: ", memory_text)
-        print("Categories: ", categories)
+        Add a new memory to the database.
 
-        embeddings = await generate_embeddings([memory_text])
+        Args:
+        memory_text: A simple, atomic fact about the user.
+        categories: Use existing categories or create new ones if required.
+        """
+        logger.debug("Adding memory: %s | %s", memory_text, categories)
+        embeddings = await generate_embeddings([memory_text], task="document")
         await insert_memories(
-            memories=[
+            [
                 EmbeddedMemory(
                     user_id=user_id,
                     memory_text=memory_text,
                     categories=categories,
-                    date=datetime.now().strftime("%Y-%m-%d %H:%m"),
+                    date=_now(),
                     embedding=embeddings[0],
                 )
             ]
         )
-
         return f"Memory: '{memory_text}' was added to DB"
 
     async def update(memory_id: int, updated_memory_text: str, categories: list[str]):
         """
-        Updating memory_id to use updated_memory_text
+        Replace an existing memory with richer or corrected information.
 
         Args:
-        memory_id: integer index of the memory to replace
-
-        updated_memory_text: Simple atomic factoid to replace the old memory with the new memory
-
+        memory_id: integer id of the memory to replace (from existing_memories)
+        updated_memory_text: Simple atomic factoid that replaces the old memory
         categories: Use existing categories or create new ones if required
         """
-        print(
-            "Memory updating: ",
-            "\n Original: ",
+        if err := id_error(memory_id):
+            return err
+        logger.debug(
+            "Updating memory %s: %r -> %r",
+            memory_id,
             existing_memories[memory_id].memory_text,
-            "\n New memory text: ",
             updated_memory_text,
         )
-
-        point_id = get_point_id_from_memory_id(memory_id)
-        await delete_records([point_id])
-
-        embeddings = await generate_embeddings([updated_memory_text])
-
+        point_id = existing_memories[memory_id].point_id
+        # Embed first, then overwrite the same point: a failed embedding call
+        # can no longer lose the old memory.
+        embeddings = await generate_embeddings([updated_memory_text], task="document")
         await insert_memories(
-            memories=[
+            [
                 EmbeddedMemory(
                     user_id=user_id,
                     memory_text=updated_memory_text,
                     categories=categories,
-                    date=datetime.now().strftime("%Y-%m-%d %H:%m"),
+                    date=_now(),
                     embedding=embeddings[0],
                 )
-            ]
+            ],
+            point_ids=[point_id],
         )
         return f"Memory {memory_id} has been updated to: '{updated_memory_text}'"
 
     async def noop():
         """
-        Call this is no action is required
+        Call this if no action is required
         """
         return "No action done"
 
     async def delete(memory_ids: list[int]):
         """
-        Remove these memory_ids from the database
-        """
-        print("Deleting these memories")
-        for memory_id in memory_ids:
-            print(existing_memories[memory_id].memory_text)
+        Remove memories that are contradicted or no longer needed.
 
-        await delete_records(memory_ids)
-        return f"Memory {memory_ids} deleted"
+        Args:
+        memory_ids: list of integer memory_ids (from existing_memories) to remove
+        """
+        valid = sorted({i for i in memory_ids if not id_error(i)})
+        if not valid:
+            return "No valid memory_ids given; nothing was deleted."
+        # Map the model's list indices to real Qdrant point ids.
+        await delete_records([existing_memories[i].point_id for i in valid])
+        return f"Memories {valid} deleted"
 
     memory_updater = dspy.ReAct(
         UpdateMemorySignature, tools=[add_memory, update, delete, noop], max_iters=3
@@ -139,14 +161,7 @@ async def update_memories_agent(
         for idx, m in enumerate(existing_memories)
     ]
 
-    with dspy.context(
-        lm=dspy.LM(
-            model="gpt-5-mini",
-            reasoning_effort="minimal",
-            temperature=1,
-            max_tokens=16000,
-        )
-    ):
+    with dspy.context(lm=updater_lm):
         out = await memory_updater.acall(
             messages=messages, existing_memories=memory_ids
         )
@@ -155,20 +170,18 @@ async def update_memories_agent(
 
 async def update_memories(user_id: int, messages: list[dict]):
     latest_user_message = [x["content"] for x in messages if x["role"] == "user"][-1]
-    embedding = (await generate_embeddings([latest_user_message]))[0]
+    embedding = (await generate_embeddings([latest_user_message], task="query"))[0]
 
     retrieved_memories = await search_memories(search_vector=embedding, user_id=user_id)
 
-    response = await update_memories_agent(
+    return await update_memories_agent(
         user_id=user_id, existing_memories=retrieved_memories, messages=messages
     )
-    return response
 
 
 async def test():
     messages = [{"role": "user", "content": "I want to go Tokyo"}]
     response = await update_memories(user_id=1, messages=messages)
-
     print(response)
 
 

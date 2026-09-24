@@ -1,14 +1,12 @@
-from typing import Dict, List
-import dspy
-import asyncio
-import os
-from rich.console import Console
-from rich.rule import Rule
-
 import warnings
 
 warnings.filterwarnings("ignore")
 
+import dspy
+from rich.console import Console
+from rich.rule import Rule
+
+from mem.config import CHAT_MAX_TOKENS, CHAT_MODEL, CHAT_TEMPERATURE, make_lm
 from mem.generate_embeddings import generate_embeddings
 from mem.update_memory import update_memories
 from mem.vectordb import get_all_categories, search_memories, stringify_retrieved_point
@@ -19,13 +17,7 @@ dspy.configure_cache(
     enable_memory_cache=False,
 )
 
-
-model = dspy.LM(
-    model=os.getenv("GEMINI_MODEL", "gemini/gemini-2.0-flash"),
-    api_key=os.environ.get("GEMINI_API_KEY"),
-    temperature=1,
-    max_tokens=16000,
-)
+model = make_lm(CHAT_MODEL, temperature=CHAT_TEMPERATURE, max_tokens=CHAT_MAX_TOKENS)
 
 
 class ResponseGenerator(dspy.Signature):
@@ -56,7 +48,8 @@ class ResponseGenerator(dspy.Signature):
     )
 
 
-async def run_chat(user_id):
+def create_response_generator(user_id: int, verbose: bool = False) -> dspy.ReAct:
+    """Shared by the CLI (run_chat) and the web app."""
 
     async def fetch_similar_memories(search_text: str, categories: list[str]):
         """
@@ -66,23 +59,26 @@ async def run_chat(user_id):
         - search_text : The string to embed and do vector similarity search
         - categories : List of strings taken from existing_categories. Use an empty list ( [] ) if you want to search across all categories.
         """
+        if verbose:
+            console.log("Search text: ", search_text)
+            console.log("Categories: ", categories)
 
-        console.log("Search text: ", search_text)
-        console.log("Categories: ", categories)
-
-        search_vector = (await generate_embeddings([search_text]))[0]
+        search_vector = (await generate_embeddings([search_text], task="query"))[0]
         memories = await search_memories(
             search_vector,
             user_id=user_id,
             categories=None if len(categories) == 0 else categories,
         )
         memories_str = [stringify_retrieved_point(m_) for m_ in memories]
-        console.log(f"Retrieved memories: \n", "\n- ".join(memories_str))
+        if verbose:
+            console.log("Retrieved memories:\n- " + "\n- ".join(memories_str))
         return {"memories": memories_str}
 
-    response_generator = dspy.ReAct(
-        ResponseGenerator, tools=[fetch_similar_memories], max_iters=2
-    )
+    return dspy.ReAct(ResponseGenerator, tools=[fetch_similar_memories], max_iters=2)
+
+
+async def run_chat(user_id):
+    response_generator = create_response_generator(user_id, verbose=True)
     past_messages = []
 
     existing_categories = await get_all_categories(user_id=user_id)
@@ -94,13 +90,11 @@ async def run_chat(user_id):
         console.print(Rule(style="grey50"))
 
         with console.status("[bold green] Working..."):
-
-            # We are passing the entire conversation stack of the current session to the model
-            # Mem0 does not do this. It seperately creates a conversation summary when chats get too long.
-            # I ignored this step to keep the code simple.
+            # The whole session transcript is passed each turn. Mem0 instead
+            # summarizes long chats; see the TODO below.
             with dspy.context(lm=model):
                 out = await response_generator.acall(
-                    transcript=past_messages,  # TODO: Unbounded transcript
+                    transcript=past_messages,  # TODO: bound / summarize long transcripts
                     question=question,
                     existing_categories=existing_categories,
                 )
@@ -115,17 +109,17 @@ async def run_chat(user_id):
             )
 
             if out.save_memory:
-                # Ideally, this should run as a background process
-                # But I am running it here to showcase the workflow better
-
+                # Blocking here to show the workflow; the web app runs this
+                # in the background.
                 console.log("Trying to update memory...")
-                update_result = await update_memories(
-                    user_id=user_id,
-                    messages=past_messages[-6:],
-                )
-                console.log(update_result, style="italic")
-
-                # Refresh the existing categories that's searchable
-                existing_categories = await get_all_categories(user_id=user_id)
+                try:
+                    update_result = await update_memories(
+                        user_id=user_id,
+                        messages=past_messages[-6:],
+                    )
+                    console.log(update_result, style="italic")
+                    existing_categories = await get_all_categories(user_id=user_id)
+                except Exception as e:
+                    console.log(f"Memory update failed: {e}", style="bold red")
 
         console.print(f"\nAI: {response}\n\n", style="bold green")

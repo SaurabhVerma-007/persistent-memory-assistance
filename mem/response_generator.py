@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.rule import Rule
 
 from mem.config import CHAT_MAX_TOKENS, CHAT_MODEL, CHAT_TEMPERATURE, make_lm
+from mem.events import TraceRef, log_event
 from mem.generate_embeddings import generate_embeddings
 from mem.update_memory import update_memories
 from mem.vectordb import get_all_categories, search_memories, stringify_retrieved_point
@@ -48,8 +49,15 @@ class ResponseGenerator(dspy.Signature):
     )
 
 
-def create_response_generator(user_id: int, verbose: bool = False) -> dspy.ReAct:
-    """Shared by the CLI (run_chat) and the web app."""
+def create_response_generator(
+    user_id: int, verbose: bool = False, trace: TraceRef | None = None
+) -> dspy.ReAct:
+    """Shared by the CLI (run_chat) and the web app.
+
+    `trace` is a mutable holder; the web app sets trace.id for each turn so
+    retrieval events on the dashboard are grouped under the message that
+    caused them.
+    """
 
     async def fetch_similar_memories(search_text: str, categories: list[str]):
         """
@@ -68,6 +76,21 @@ def create_response_generator(user_id: int, verbose: bool = False) -> dspy.ReAct
             search_vector,
             user_id=user_id,
             categories=None if len(categories) == 0 else categories,
+        )
+        await log_event(
+            user_id,
+            trace.id if trace else None,
+            "retrieve",
+            query=search_text,
+            categories=categories,
+            results=[
+                {
+                    "text": m.memory_text,
+                    "score": round(m.score, 3),
+                    "categories": m.categories,
+                }
+                for m in memories
+            ],
         )
         memories_str = [stringify_retrieved_point(m_) for m_ in memories]
         if verbose:

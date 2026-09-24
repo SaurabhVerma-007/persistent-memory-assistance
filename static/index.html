@@ -17,10 +17,17 @@
         --accent: #d6f36a;
         --accent-ink: #152014;
         --user: #31463f;
+        --c-retrieve: #6cb8ff;
+        --c-candidates: #a5a8ff;
+        --c-add: #8be28b;
+        --c-update: #ffc857;
+        --c-delete: #ff7a7a;
+        --c-noop: #a8aaa5;
+        --c-summary: #d3a9ff;
+        --c-error: #ff7a7a;
       }
-
       * { box-sizing: border-box; }
-
+      .hidden { display: none !important; }
       body {
         margin: 0;
         min-height: 100vh;
@@ -28,117 +35,487 @@
         background: radial-gradient(circle at 15% 10%, #334c43 0, transparent 32%), linear-gradient(135deg, #101716, #18211f 58%, #28352e);
         font-family: "DM Sans", sans-serif;
       }
-
-      main { width: min(900px, 100%); margin: 0 auto; padding: 32px 20px 24px; }
-      header { display: flex; justify-content: space-between; gap: 20px; align-items: end; padding: 12px 0 26px; }
-      h1 { margin: 0; font: 700 clamp(2rem, 6vw, 4.8rem)/.95 "Space Grotesk", sans-serif; letter-spacing: 0; }
-      .eyebrow { margin: 0 0 10px; color: var(--accent); font-size: .76rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-      .status-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
-      .status { color: var(--muted); font-size: .85rem; text-align: right; }
-      .shell { min-height: 68vh; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 24px 80px rgba(0, 0, 0, .24); backdrop-filter: blur(18px); }
-      #messages { display: flex; flex: 1; flex-direction: column; gap: 14px; overflow: auto; padding: 24px; }
-      .message { max-width: 78%; padding: 13px 16px; border: 1px solid var(--line); border-radius: 8px; line-height: 1.55; white-space: pre-wrap; }
-      .message.assistant { align-self: flex-start; background: rgba(255, 255, 255, .045); }
-      .message.user { align-self: flex-end; background: var(--user); }
-      .empty { margin: auto; max-width: 440px; color: var(--muted); text-align: center; line-height: 1.6; }
-      form { display: flex; gap: 10px; border-top: 1px solid var(--line); padding: 16px; }
-      textarea { min-height: 48px; max-height: 150px; flex: 1; resize: vertical; border: 1px solid var(--line); border-radius: 6px; padding: 13px 14px; color: var(--ink); background: rgba(0, 0, 0, .2); font: inherit; }
-      textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-      button { align-self: stretch; border: 0; border-radius: 6px; padding: 0 20px; color: var(--accent-ink); background: var(--accent); font: 700 .95rem "DM Sans", sans-serif; cursor: pointer; }
+      button { font-family: inherit; cursor: pointer; }
       button:disabled { cursor: wait; opacity: .55; }
-      button.ghost { align-self: auto; padding: 6px 12px; color: var(--muted); background: transparent; border: 1px solid var(--line); font: 500 .8rem "DM Sans", sans-serif; }
-      button.ghost:hover:not(:disabled) { color: var(--ink); border-color: var(--muted); }
-      @media (max-width: 600px) { main { padding: 20px 12px 12px; } header { align-items: start; flex-direction: column; } .status-wrap { align-items: flex-start; } .status { text-align: left; } .shell { min-height: 74vh; } .message { max-width: 90%; } form { flex-direction: column; } form button { min-height: 48px; } }
+      .primary { border: 0; border-radius: 6px; padding: 0 20px; min-height: 44px; color: var(--accent-ink); background: var(--accent); font-weight: 700; font-size: .95rem; }
+      .ghost { padding: 6px 12px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; font-weight: 500; font-size: .8rem; }
+      .ghost:hover:not(:disabled) { color: var(--ink); border-color: var(--muted); }
+      .eyebrow { margin: 0 0 10px; color: var(--accent); font-size: .76rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+      h1 { margin: 0; font: 700 clamp(2rem, 5vw, 3.6rem)/.95 "Space Grotesk", sans-serif; }
+      h2 { margin: 0; font: 600 1.05rem "Space Grotesk", sans-serif; }
+      .muted { color: var(--muted); }
+      input, textarea { border: 1px solid var(--line); border-radius: 6px; padding: 13px 14px; color: var(--ink); background: rgba(0, 0, 0, .2); font: inherit; width: 100%; }
+      input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+      /* ---- auth ---- */
+      .auth { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+      .auth-card { width: min(400px, 100%); padding: 28px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 24px 80px rgba(0,0,0,.24); backdrop-filter: blur(18px); }
+      .auth-tabs { display: flex; gap: 8px; margin: 18px 0; }
+      .auth-tabs button { flex: 1; padding: 9px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; font-weight: 600; }
+      .auth-tabs button.active { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+      .auth form { display: flex; flex-direction: column; gap: 12px; }
+      .auth-error { min-height: 1.2em; margin: 0; color: var(--c-error); font-size: .88rem; }
+
+      /* ---- app ---- */
+      .wrap { width: min(1400px, 100%); margin: 0 auto; padding: 24px 20px; }
+      .top { display: flex; justify-content: space-between; align-items: end; gap: 16px; padding-bottom: 20px; }
+      .who { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: .9rem; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+      .panel { display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 540px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 24px 80px rgba(0,0,0,.24); backdrop-filter: blur(18px); overflow: hidden; }
+      .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+      .head-actions { display: flex; align-items: center; gap: 12px; }
+      .status { color: var(--muted); font-size: .82rem; }
+
+      #messages { display: flex; flex: 1; flex-direction: column; gap: 12px; overflow: auto; padding: 18px; }
+      .message { max-width: 85%; padding: 12px 15px; border: 1px solid var(--line); border-radius: 8px; line-height: 1.55; white-space: pre-wrap; }
+      .message.assistant { align-self: flex-start; background: rgba(255,255,255,.045); }
+      .message.user { align-self: flex-end; background: var(--user); }
+      .empty { margin: auto; max-width: 380px; color: var(--muted); text-align: center; line-height: 1.6; }
+      #chat-form { display: flex; gap: 10px; border-top: 1px solid var(--line); padding: 14px; }
+      #chat-form textarea { min-height: 46px; max-height: 140px; resize: vertical; }
+
+      .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 14px 18px 4px; }
+      .stat { padding: 10px 8px; border: 1px solid var(--line); border-radius: 6px; text-align: center; background: rgba(255,255,255,.03); }
+      .stat b { display: block; font: 700 1.4rem "Space Grotesk", sans-serif; }
+      .stat span { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; }
+      .stat.add b { color: var(--c-add); } .stat.update b { color: var(--c-update); } .stat.delete b { color: var(--c-delete); } .stat.retrieve b { color: var(--c-retrieve); }
+      .tabs { display: flex; gap: 6px; padding: 12px 18px 0; }
+      .tab { padding: 7px 14px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; font-weight: 600; font-size: .85rem; }
+      .tab.active { color: var(--ink); border-color: var(--accent); }
+      .scroll { flex: 1; overflow: auto; padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+
+      .group { border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.03); overflow: hidden; }
+      .group-head { display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: rgba(0,0,0,.15); }
+      .group-title { font-weight: 600; font-size: .92rem; line-height: 1.4; word-break: break-word; }
+      .group-meta { flex-shrink: 0; text-align: right; color: var(--muted); font-size: .75rem; }
+      .chip { display: inline-block; margin: 4px 4px 0 0; padding: 2px 8px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: .72rem; }
+      .chip.save { color: var(--c-add); border-color: var(--c-add); }
+      .group-body { display: flex; flex-direction: column; }
+      .row { display: flex; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line); }
+      .group-body .row:first-child { border-top: 0; }
+      .badge { flex-shrink: 0; align-self: flex-start; min-width: 74px; padding: 2px 6px; border-radius: 4px; border: 1px solid currentColor; font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-align: center; }
+      .badge.retrieve { color: var(--c-retrieve); } .badge.candidates { color: var(--c-candidates); } .badge.add { color: var(--c-add); }
+      .badge.update { color: var(--c-update); } .badge.delete { color: var(--c-delete); } .badge.noop { color: var(--c-noop); }
+      .badge.summary { color: var(--c-summary); } .badge.error { color: var(--c-error); }
+      .row-body { min-width: 0; font-size: .88rem; line-height: 1.5; word-break: break-word; }
+      .old { color: var(--muted); text-decoration: line-through; }
+      .arrow { color: var(--c-update); margin: 0 4px; }
+      .mem-list { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+      .mem-list li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 8px; border-radius: 4px; background: rgba(0,0,0,.18); }
+      .score { flex-shrink: 0; color: var(--c-retrieve); font-variant-numeric: tabular-nums; font-size: .78rem; }
+
+      .mem-card { padding: 11px 13px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.03); }
+      .mem-card .date { margin-top: 6px; color: var(--muted); font-size: .72rem; }
+
+      @media (max-width: 900px) {
+        .grid { grid-template-columns: 1fr; }
+        .panel { height: 80vh; }
+        .top { flex-direction: column; align-items: start; }
+        .stats { grid-template-columns: repeat(3, 1fr); }
+      }
     </style>
   </head>
   <body>
-    <main>
-      <header>
-        <div><p class="eyebrow">Long-term memory assistant</p><h1>Memory Chat</h1></div>
-        <div class="status-wrap">
-          <div class="status" id="status">Ready to remember.</div>
-          <button id="forget" class="ghost" type="button">Clear my memory</button>
+    <!-- ================= LOGIN ================= -->
+    <div id="auth-view" class="auth hidden">
+      <div class="auth-card">
+        <p class="eyebrow">Long-term memory assistant</p>
+        <h1>Memory Chat</h1>
+        <div class="auth-tabs">
+          <button type="button" class="active" data-auth-mode="login">Sign in</button>
+          <button type="button" data-auth-mode="signup">Create account</button>
         </div>
-      </header>
-      <section class="shell" aria-label="Chat">
-        <div id="messages"><p class="empty">Tell me something about yourself, then ask about it later. Your browser keeps its own memory record.</p></div>
-        <form id="chat-form">
-          <textarea id="question" placeholder="Write a message..." aria-label="Message" required></textarea>
-          <button id="send" type="submit">Send</button>
+        <form id="auth-form">
+          <input id="username" placeholder="Username" autocomplete="username" maxlength="32" required />
+          <input id="password" type="password" placeholder="Password" autocomplete="current-password" maxlength="128" required />
+          <p class="auth-error" id="auth-error" role="alert"></p>
+          <button id="auth-submit" class="primary" type="submit">Sign in</button>
         </form>
-      </section>
-    </main>
-    <script>
-      const form = document.querySelector("#chat-form");
-      const input = document.querySelector("#question");
-      const messages = document.querySelector("#messages");
-      const status = document.querySelector("#status");
-      const send = document.querySelector("#send");
-      const forget = document.querySelector("#forget");
-      const EMPTY_HTML = '<p class="empty">Tell me something about yourself, then ask about it later. Your browser keeps its own memory record.</p>';
-      let sessionId = localStorage.getItem("mem0-session-id");
+        <p class="muted" style="font-size:.8rem;margin:14px 0 0;">Every account has its own private memory. Passwords must be at least 8 characters.</p>
+      </div>
+    </div>
 
-      function addMessage(role, text) {
-        const empty = messages.querySelector(".empty");
-        if (empty) empty.remove();
-        const message = document.createElement("div");
-        message.className = `message ${role}`;
-        message.textContent = text;
-        messages.appendChild(message);
-        messages.scrollTop = messages.scrollHeight;
+    <!-- ================= APP ================= -->
+    <div id="app-view" class="hidden">
+      <div class="wrap">
+        <header class="top">
+          <div><p class="eyebrow">Long-term memory assistant</p><h1>Memory Chat</h1></div>
+          <div class="who"><span id="who"></span><button id="logout" class="ghost" type="button">Sign out</button></div>
+        </header>
+
+        <div class="grid">
+          <!-- chat -->
+          <section class="panel" aria-label="Chat">
+            <div class="panel-head">
+              <h2>Chat</h2>
+              <div class="head-actions">
+                <span class="status" id="status">Ready to remember.</span>
+                <button id="new-chat" class="ghost" type="button">New conversation</button>
+              </div>
+            </div>
+            <div id="messages"></div>
+            <form id="chat-form">
+              <textarea id="question" placeholder="Write a message... (Enter to send)" aria-label="Message" required></textarea>
+              <button id="send" class="primary" type="submit">Send</button>
+            </form>
+          </section>
+
+          <!-- dashboard -->
+          <section class="panel" aria-label="Memory dashboard">
+            <div class="panel-head">
+              <h2>Memory dashboard</h2>
+              <button id="forget" class="ghost" type="button">Clear my memory</button>
+            </div>
+            <div class="stats">
+              <div class="stat"><b id="stat-memories">0</b><span>Memories</span></div>
+              <div class="stat retrieve"><b id="stat-retrieve">0</b><span>Retrieved</span></div>
+              <div class="stat add"><b id="stat-add">0</b><span>Added</span></div>
+              <div class="stat update"><b id="stat-update">0</b><span>Updated</span></div>
+              <div class="stat delete"><b id="stat-delete">0</b><span>Deleted</span></div>
+            </div>
+            <div class="tabs">
+              <button class="tab active" type="button" data-tab="activity">Live activity</button>
+              <button class="tab" type="button" data-tab="store">Memory store</button>
+            </div>
+            <div id="activity" class="scroll"></div>
+            <div id="store" class="scroll hidden"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (s) => document.querySelector(s);
+      // All dynamic text goes through textContent (never innerHTML): memories are
+      // model-generated from user input.
+      function el(tag, cls, text) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+      }
+      function note(text) { return el("p", "empty", text); }
+
+      const CHAT_EMPTY = "Tell me something about yourself, then ask about it later. Try a new conversation and ask again: the memory stays.";
+      const ACTIVITY_EMPTY = "Activity appears here as the assistant searches, adds, updates and deletes memories.";
+
+      let authMode = "login";
+      let lastEventId = 0;
+      let pollTimer = null;
+      let polling = false;
+      const groups = new Map();
+
+      /* ---------- api ---------- */
+      async function api(path, options = {}) {
+        const res = await fetch(path, {
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          ...options,
+        });
+        const raw = await res.text();
+        let data = null;
+        try { data = raw ? JSON.parse(raw) : null; } catch {}
+        if (res.status === 401 && !path.startsWith("/api/auth/")) {
+          showAuth();
+          throw new Error("Please sign in again.");
+        }
+        if (!res.ok) {
+          const d = data && data.detail;
+          const msg = Array.isArray(d) ? d.map((x) => x.msg).join("; ") : d;
+          throw new Error(msg || raw || "The request failed.");
+        }
+        return data;
       }
 
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const question = input.value.trim();
-        if (!question) return;
-        addMessage("user", question);
-        input.value = "";
-        send.disabled = true;
-        status.textContent = "Thinking and checking memory...";
+      /* ---------- views ---------- */
+      function showAuth() {
+        clearInterval(pollTimer);
+        $("#app-view").classList.add("hidden");
+        $("#auth-view").classList.remove("hidden");
+      }
+      function showApp() {
+        $("#auth-view").classList.add("hidden");
+        $("#app-view").classList.remove("hidden");
+      }
+
+      /* ---------- auth ---------- */
+      function setAuthMode(mode) {
+        authMode = mode;
+        document.querySelectorAll("[data-auth-mode]").forEach((b) =>
+          b.classList.toggle("active", b.dataset.authMode === mode));
+        $("#auth-submit").textContent = mode === "login" ? "Sign in" : "Create account";
+        $("#password").autocomplete = mode === "login" ? "current-password" : "new-password";
+        $("#password").minLength = mode === "signup" ? 8 : 1;
+        $("#auth-error").textContent = "";
+      }
+      document.querySelectorAll("[data-auth-mode]").forEach((b) =>
+        b.addEventListener("click", () => setAuthMode(b.dataset.authMode)));
+
+      $("#auth-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = $("#auth-submit");
+        btn.disabled = true;
+        $("#auth-error").textContent = "";
         try {
-          const response = await fetch("/api/chat", {
+          const data = await api(`/api/auth/${authMode}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ question, session_id: sessionId }),
+            body: JSON.stringify({ username: $("#username").value, password: $("#password").value }),
           });
-          const raw = await response.text();
-          let data;
-          try {
-            data = JSON.parse(raw);
-          } catch {
-            throw new Error(raw || "The server returned an invalid response.");
-          }
-          if (!response.ok) throw new Error(data.detail || "The request failed.");
-          sessionId = data.session_id;
-          localStorage.setItem("mem0-session-id", sessionId);
-          addMessage("assistant", data.answer);
-          status.textContent = "Memory is active.";
-        } catch (error) {
-          addMessage("assistant", `Unable to respond: ${error.message}`);
-          status.textContent = "Connection problem.";
+          $("#password").value = "";
+          await startApp(data.username);
+        } catch (err) {
+          $("#auth-error").textContent = err.message;
         } finally {
-          send.disabled = false;
-          input.focus();
+          btn.disabled = false;
         }
       });
 
-      forget.addEventListener("click", async () => {
-        if (!confirm("Delete everything I remember about you?")) return;
-        forget.disabled = true;
+      $("#logout").addEventListener("click", async () => {
+        try { await api("/api/auth/logout", { method: "POST" }); } catch {}
+        showAuth();
+      });
+
+      /* ---------- app lifecycle ---------- */
+      function resetState() {
+        lastEventId = 0;
+        groups.clear();
+        $("#messages").replaceChildren(note(CHAT_EMPTY));
+        $("#activity").replaceChildren(note(ACTIVITY_EMPTY));
+        $("#store").replaceChildren();
+        ["memories", "retrieve", "add", "update", "delete"].forEach((k) => ($(`#stat-${k}`).textContent = "0"));
+        $("#status").textContent = "Ready to remember.";
+      }
+
+      async function startApp(username) {
+        $("#who").textContent = `Signed in as ${username}`;
+        resetState();
+        showApp();
+        await Promise.all([loadHistory(), pollEvents(), loadMemories()]);
+        clearInterval(pollTimer);
+        pollTimer = setInterval(pollEvents, 1500);
+      }
+
+      /* ---------- chat ---------- */
+      function addMessage(role, text) {
+        const empty = $("#messages").querySelector(".empty");
+        if (empty) empty.remove();
+        $("#messages").appendChild(el("div", `message ${role}`, text));
+        $("#messages").scrollTop = $("#messages").scrollHeight;
+      }
+
+      async function loadHistory() {
         try {
-          const response = await fetch("/api/memory", { method: "DELETE" });
-          if (!response.ok) throw new Error("The request failed.");
-          localStorage.removeItem("mem0-session-id");
-          sessionId = null;
-          messages.innerHTML = EMPTY_HTML;
-          status.textContent = "Memory cleared.";
-        } catch (error) {
-          status.textContent = "Could not clear memory.";
+          const { messages } = await api("/api/chat/history");
+          messages.forEach((m) => addMessage(m.role, m.content));
+        } catch {}
+      }
+
+      $("#chat-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const question = $("#question").value.trim();
+        if (!question) return;
+        addMessage("user", question);
+        $("#question").value = "";
+        $("#send").disabled = true;
+        $("#status").textContent = "Thinking and checking memory...";
+        try {
+          const data = await api("/api/chat", { method: "POST", body: JSON.stringify({ question }) });
+          addMessage("assistant", data.answer);
+          $("#status").textContent = "Memory is active.";
+          pollEvents();
+        } catch (err) {
+          addMessage("assistant", `Unable to respond: ${err.message}`);
+          $("#status").textContent = "Connection problem.";
         } finally {
-          forget.disabled = false;
+          $("#send").disabled = false;
+          $("#question").focus();
         }
       });
+      $("#question").addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#chat-form").requestSubmit(); }
+      });
+
+      $("#new-chat").addEventListener("click", async () => {
+        try {
+          await api("/api/chat/reset", { method: "POST" });
+          $("#messages").replaceChildren(note("New conversation. Long-term memory is kept: ask about something you told me earlier."));
+          $("#status").textContent = "Conversation reset.";
+        } catch {}
+      });
+
+      $("#forget").addEventListener("click", async () => {
+        if (!confirm("Delete everything I remember about you, and the activity log?")) return;
+        $("#forget").disabled = true;
+        try {
+          await api("/api/memory", { method: "DELETE" });
+          resetState();
+          $("#status").textContent = "Memory cleared.";
+        } catch (err) {
+          $("#status").textContent = "Could not clear memory.";
+        } finally {
+          $("#forget").disabled = false;
+        }
+      });
+
+      /* ---------- dashboard ---------- */
+      document.querySelectorAll(".tab").forEach((t) =>
+        t.addEventListener("click", () => {
+          document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
+          $("#activity").classList.toggle("hidden", t.dataset.tab !== "activity");
+          $("#store").classList.toggle("hidden", t.dataset.tab !== "store");
+        }));
+
+      function chips(list) {
+        const wrap = el("div");
+        (list || []).forEach((c) => wrap.appendChild(el("span", "chip", c)));
+        return wrap;
+      }
+      function memList(items) {
+        const ul = el("ul", "mem-list");
+        items.forEach((m) => {
+          const li = el("li");
+          li.appendChild(el("span", "", m.text));
+          li.appendChild(el("span", "score", Number(m.score).toFixed(2)));
+          ul.appendChild(li);
+        });
+        return ul;
+      }
+      function row(type, ...children) {
+        const r = el("div", "row");
+        r.appendChild(el("span", `badge ${type}`, type.toUpperCase()));
+        const body = el("div", "row-body");
+        children.forEach((c) => c && body.appendChild(c));
+        r.appendChild(body);
+        return r;
+      }
+
+      function buildRow(ev) {
+        const d = ev.data;
+        switch (ev.type) {
+          case "retrieve":
+            return row("retrieve",
+              el("div", "", `Searched memory for: "${d.query}"`),
+              d.categories && d.categories.length ? chips(d.categories) : null,
+              d.results.length ? memList(d.results) : el("div", "muted", "No matching memories found."));
+          case "candidates":
+            return row("candidates",
+              el("div", "", d.memories.length
+                ? `Updater compared the new message against ${d.memories.length} similar memories:`
+                : "Updater found no similar memories to compare against."),
+              d.memories.length ? memList(d.memories) : null);
+          case "add":
+            return row("add", el("div", "", d.text), chips(d.categories));
+          case "update": {
+            const line = el("div");
+            line.appendChild(el("span", "old", d.old_text));
+            line.appendChild(el("span", "arrow", "→"));
+            line.appendChild(el("span", "", d.new_text));
+            return row("update", line, chips(d.categories));
+          }
+          case "delete":
+            return row("delete", el("div", "old", d.text));
+          case "noop":
+            return row("noop", el("div", "muted", "No change needed."));
+          case "summary":
+            return row("summary", el("div", "", `Updater summary: ${d.text}`));
+          case "error":
+            return row("error", el("div", "", d.message));
+          default:
+            return null;
+        }
+      }
+
+      function makeGroup() {
+        const root = el("article", "group");
+        const head = el("div", "group-head");
+        const title = el("div", "group-title", "Working...");
+        const meta = el("div", "group-meta");
+        head.append(title, meta);
+        const body = el("div", "group-body");
+        root.append(head, body);
+        return { root, title, meta, body };
+      }
+
+      function groupFor(ev) {
+        const key = ev.trace_id || `solo-${ev.id}`;
+        let g = groups.get(key);
+        if (!g) {
+          g = makeGroup();
+          if (!ev.trace_id) g.title.textContent = "Background activity";
+          groups.set(key, g);
+          const activity = $("#activity");
+          const placeholder = activity.querySelector(".empty");
+          if (placeholder) placeholder.remove();
+          activity.prepend(g.root); // newest on top
+        }
+        return g;
+      }
+
+      function renderEvent(ev) {
+        const g = groupFor(ev);
+        const time = new Date(ev.ts).toLocaleTimeString();
+        if (ev.type === "turn") {
+          g.title.textContent = `You: ${ev.data.question}`;
+          g.meta.replaceChildren(
+            el("div", "", time),
+            el("span", ev.data.save_memory ? "chip save" : "chip",
+               ev.data.save_memory ? "Save requested" : "No save needed"));
+          return;
+        }
+        const r = buildRow(ev);
+        if (r) g.body.appendChild(r);
+        if (!g.meta.textContent) g.meta.textContent = time;
+      }
+
+      async function pollEvents() {
+        if (polling) return;
+        polling = true;
+        try {
+          const { events } = await api(`/api/dashboard/events?after_id=${lastEventId}`);
+          if (!events.length) return;
+          events.forEach(renderEvent);
+          lastEventId = events[events.length - 1].id;
+          await loadMemories();
+        } catch {} finally {
+          polling = false;
+        }
+      }
+
+      async function loadMemories() {
+        try {
+          const { memories, counts } = await api("/api/dashboard/memories");
+          $("#stat-memories").textContent = memories.length;
+          $("#stat-retrieve").textContent = counts.retrieve || 0;
+          $("#stat-add").textContent = counts.add || 0;
+          $("#stat-update").textContent = counts.update || 0;
+          $("#stat-delete").textContent = counts.delete || 0;
+
+          const store = $("#store");
+          store.replaceChildren();
+          if (!memories.length) {
+            store.appendChild(note("No memories stored yet. Tell the assistant something about yourself."));
+            return;
+          }
+          memories.forEach((m) => {
+            const card = el("div", "mem-card");
+            card.appendChild(el("div", "", m.text));
+            card.appendChild(chips(m.categories));
+            const d = new Date(m.date);
+            card.appendChild(el("div", "date", isNaN(d) ? m.date : d.toLocaleString()));
+            store.appendChild(card);
+          });
+        } catch {}
+      }
+
+      /* ---------- boot ---------- */
+      (async () => {
+        try {
+          const me = await api("/api/auth/me");
+          await startApp(me.username);
+        } catch {
+          showAuth();
+        }
+      })();
     </script>
   </body>
 </html>

@@ -16,7 +16,7 @@ from mem.config import (
 from mem.events import TraceRef, log_event
 from mem.generate_embeddings import generate_embeddings
 from mem.update_memory import update_memories
-from mem.vectordb import get_all_categories, search_memories, stringify_retrieved_point
+from mem.vectordb import RetrievedMemory, get_all_categories, search_memories, stringify_retrieved_point
 
 console = Console(log_path=False)
 dspy.configure_cache(
@@ -38,7 +38,7 @@ class ResponseGenerator(dspy.Signature):
     """
     You will be given a past conversation transcript between user and an AI agent. Also the latest question by the user.
 
-    You have the option to look up the past memories from a vector database to fetch relevant context if required. If you can't find the answer to user's question from transcript or from your own internal knowledge, use the provided search tool calls to search for information.
+    Relevant saved memories are retrieved before you answer and provided separately. You MUST use them when they answer a question about the user or an earlier conversation. Do not claim you do not know a personal fact when a matching saved memory is provided. Ignore retrieved memories that are unrelated to the question. If the provided memories do not answer the question, you may use the search tool to search with a more specific query.
 
     You are also provided a list of existing categories in the memory database to quickly search across categories. You can select multiple categories as a list to do your searches. If you select no categories (keep it empty). If you keep categories as empty, we will simply search across the entire database - that is fine too.
 
@@ -55,6 +55,9 @@ class ResponseGenerator(dspy.Signature):
 
     transcript: list[dict] = dspy.InputField()
     existing_categories: list[str] = dspy.InputField()
+    retrieved_memories: list[str] = dspy.InputField(
+        description="Relevant saved user memories retrieved for this question. Use matching facts when answering."
+    )
     question: str = dspy.InputField()
     response: str = dspy.OutputField()
     save_memory: bool = dspy.OutputField(
@@ -84,26 +87,11 @@ def create_response_generator(
             console.log("Search text: ", search_text)
             console.log("Categories: ", categories)
 
-        search_vector = (await generate_embeddings([search_text], task="query"))[0]
-        memories = await search_memories(
-            search_vector,
+        memories = await retrieve_relevant_memories(
             user_id=user_id,
-            categories=None if len(categories) == 0 else categories,
-        )
-        await log_event(
-            user_id,
-            trace.id if trace else None,
-            "retrieve",
-            query=search_text,
+            search_text=search_text,
             categories=categories,
-            results=[
-                {
-                    "text": m.memory_text,
-                    "score": round(m.score, 3),
-                    "categories": m.categories,
-                }
-                for m in memories
-            ],
+            trace_id=trace.id if trace else None,
         )
         memories_str = [stringify_retrieved_point(m_) for m_ in memories]
         if verbose:
@@ -111,6 +99,38 @@ def create_response_generator(
         return {"memories": memories_str}
 
     return dspy.ReAct(ResponseGenerator, tools=[fetch_similar_memories], max_iters=2)
+
+
+async def retrieve_relevant_memories(
+    user_id: int,
+    search_text: str,
+    *,
+    categories: list[str] | None = None,
+    trace_id: str | None = None,
+) -> list[RetrievedMemory]:
+    """Search Qdrant and log the result before the response model runs."""
+    search_vector = (await generate_embeddings([search_text], task="query"))[0]
+    memories = await search_memories(
+        search_vector,
+        user_id=user_id,
+        categories=categories or None,
+    )
+    await log_event(
+        user_id,
+        trace_id,
+        "retrieve",
+        query=search_text,
+        categories=categories or [],
+        results=[
+            {
+                "text": memory.memory_text,
+                "score": round(memory.score, 3),
+                "categories": memory.categories,
+            }
+            for memory in memories
+        ],
+    )
+    return memories
 
 
 async def run_chat(user_id):
@@ -127,11 +147,19 @@ async def run_chat(user_id):
 
         with console.status("[bold green] Working..."):
             past_messages = bound_transcript(past_messages)
+            retrieved_memories = await retrieve_relevant_memories(
+                user_id=user_id,
+                search_text=question,
+            )
             with dspy.context(lm=model):
                 out = await response_generator.acall(
                     transcript=past_messages,
                     question=question,
                     existing_categories=existing_categories,
+                    retrieved_memories=[
+                        stringify_retrieved_point(memory)
+                        for memory in retrieved_memories
+                    ],
                 )
 
             response = out.response

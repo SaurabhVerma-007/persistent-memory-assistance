@@ -1,5 +1,7 @@
 # Mem0 Memory Chatbots
 
+`main.py` / `web_app.py` is the primary custom implementation; `local-qdrant/` and `basic_mem0_chatbot.py` are comparison baselines against Mem0.
+
 This project contains a few small experiments with long-term memory for conversational AI. The examples use [Mem0](https://github.com/mem0ai/mem0), [Qdrant](https://qdrant.tech/), Gemini, and DSPy.
 
 There are three separate implementations:
@@ -9,6 +11,24 @@ There are three separate implementations:
 3. **Mem0 Cloud example** - `basic_mem0_chatbot.py`. This uses the hosted Mem0 service through `MemoryClient`.
 
 The implementations use different models, collections, and vector dimensions. They are examples to compare, not one shared runtime.
+
+![Dashboard screenshot](assets/demo.png)
+
+```mermaid
+flowchart LR
+    U[User] --> UI[Browser UI]
+    UI --> W[FastAPI web app]
+    U --> CLI[CLI]
+    W --> R[Response ReAct agent]
+    CLI --> R
+    R -->|retrieve| Q[(Qdrant memories)]
+    Q --> R
+    R -->|reply| W
+    R -->|reply| CLI
+    R -->|save decision| M[Memory update agent]
+    M -->|add / update / delete| Q
+    W --> S[(SQLite locally / PostgreSQL on Render)]
+```
 
 ## Prerequisites
 
@@ -56,6 +76,7 @@ The committed `.env.example` file documents variable names and safe placeholder 
 | `MEM0_API_KEY` | Mem0 `MemoryClient` | Mem0 Cloud example only |
 | `QDRANT_URL` | Qdrant client | Hosted Qdrant; defaults to `http://localhost:6333` locally |
 | `QDRANT_API_KEY` | Qdrant client | Hosted Qdrant when authentication is enabled |
+| `DATABASE_URL` | Accounts, sessions, activity log | Optional; PostgreSQL when set, otherwise local SQLite |
 | `GEMINI_MODEL` | Custom DSPy pipeline | Optional; defaults to `gemini/gemini-2.0-flash` |
 | `QDRANT_COLLECTION` | Custom memory collection | Optional; defaults to `memories_gemini` |
 
@@ -67,6 +88,8 @@ if ($env:QDRANT_API_KEY) { "QDRANT_API_KEY is set" } else { "QDRANT_API_KEY is n
 ```
 
 For Render, add the real values under **Service > Environment**. Never commit real keys to GitHub or paste them into this README.
+
+The Render Blueprint provisions PostgreSQL and wires its internal connection string to `DATABASE_URL`. Accounts, sessions, and activity events use PostgreSQL when that variable is set; local development falls back to SQLite. Render's free PostgreSQL plan retains data across web-service redeploys, but expires 30 days after creation. Upgrade it to a paid plan before expiration for ongoing production persistence. Existing SQLite accounts and events are not migrated automatically when switching databases.
 
 ## Quick Start: Custom Pipeline
 
@@ -120,7 +143,9 @@ To create a public URL:
 
 5. Deploy the service. Render will build the `Dockerfile` and provide the live HTTPS URL.
 
-The web service exposes `GET /healthz` for health checks and `POST /api/chat` for chat requests. Each browser receives a session-specific user ID, while the memory records themselves are stored in Qdrant.
+The web service exposes `GET /healthz` for health checks, `POST /api/chat` for chat requests, and `GET /api/memory/export` for downloading a user's long-term memories as JSON. Each account receives a session-specific user ID, while memory records themselves are stored in Qdrant.
+
+At startup, the service checks required Gemini credentials and confirms it can reach Qdrant. It reports configuration or connectivity problems before accepting chat requests.
 
 ## How the Custom Pipeline Works
 
@@ -172,7 +197,7 @@ The local-Qdrant directory contains an executable integration smoke test:
 uv run python local-qdrant/test_memory.py
 ```
 
-The test requires a running Qdrant server, `GEMINI_API_KEY`, network access to Gemini, and a working Mem0 installation. It adds a sample memory and searches for it. There is currently no configured unit-test runner or test suite for the custom pipeline.
+The test requires a running Qdrant server, `GEMINI_API_KEY`, network access to Gemini, and a working Mem0 installation. It adds a sample memory and searches for it. Run the unit suite with `uv run pytest`; memory-decision tests use deterministic model actions and mock embeddings/Qdrant calls. GitHub Actions runs the suite on pushes and pull requests. The local-Qdrant smoke test remains a separate live-service integration check.
 
 ## Persistence and Collections
 
@@ -211,5 +236,7 @@ local-qdrant/
   local_chatbot.py              Mem0 OSS + local Qdrant chat
   test_memory.py                Local integration smoke test
   pyproject.toml                Local-Qdrant package metadata
+tests/                          Unit tests (memory decisions, auth, rate limits, DB)
+.github/workflows/test.yml      Push / pull request CI
 .env.example                    Example variable names (not auto-loaded)
 ```

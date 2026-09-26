@@ -44,6 +44,7 @@ COLLECTION_NAME = (
 # Print a few real scores (stringify_retrieved_point shows them) and tune.
 MEMORY_SCORE_THRESHOLD = float(os.getenv("MEMORY_SCORE_THRESHOLD", "0.5"))
 MEMORY_TOP_K = int(os.getenv("MEMORY_TOP_K", "3"))
+MAX_TRANSCRIPT_MESSAGES = max(2, int(os.getenv("MAX_TRANSCRIPT_MESSAGES", "20")))
 
 
 def make_lm(model: str, *, temperature: float, max_tokens: int):

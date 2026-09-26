@@ -39,6 +39,7 @@ local-qdrant/data/
 
 # Build / cache
 .pytest_cache/
+.pytest-dspy-cache/
 .mypy_cache/
 .ruff_cache/
 dist/
@@ -50,3 +51,4 @@ node_modules/
 
 # Local files
 *.local
+/data/

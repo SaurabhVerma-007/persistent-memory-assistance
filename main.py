@@ -1,10 +1,12 @@
 import asyncio
 from mem.response_generator import run_chat
+from mem.startup import validate_startup_config
 import sys
 
 async def main(user_id):
 
     try:
+        await validate_startup_config()
         await run_chat(user_id)
     except KeyboardInterrupt:
         print("Exitting...")

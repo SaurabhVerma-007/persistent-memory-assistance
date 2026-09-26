@@ -6,7 +6,13 @@ import dspy
 from rich.console import Console
 from rich.rule import Rule
 
-from mem.config import CHAT_MAX_TOKENS, CHAT_MODEL, CHAT_TEMPERATURE, make_lm
+from mem.config import (
+    CHAT_MAX_TOKENS,
+    CHAT_MODEL,
+    CHAT_TEMPERATURE,
+    MAX_TRANSCRIPT_MESSAGES,
+    make_lm,
+)
 from mem.events import TraceRef, log_event
 from mem.generate_embeddings import generate_embeddings
 from mem.update_memory import update_memories
@@ -17,6 +23,13 @@ dspy.configure_cache(
     enable_disk_cache=False,
     enable_memory_cache=False,
 )
+
+
+def bound_transcript(messages: list[dict]) -> list[dict]:
+    """Keep the newest complete turns within the configured message limit."""
+    limit = MAX_TRANSCRIPT_MESSAGES - MAX_TRANSCRIPT_MESSAGES % 2
+    return messages[-limit:]
+
 
 model = make_lm(CHAT_MODEL, temperature=CHAT_TEMPERATURE, max_tokens=CHAT_MAX_TOKENS)
 
@@ -113,11 +126,10 @@ async def run_chat(user_id):
         console.print(Rule(style="grey50"))
 
         with console.status("[bold green] Working..."):
-            # The whole session transcript is passed each turn. Mem0 instead
-            # summarizes long chats; see the TODO below.
+            past_messages = bound_transcript(past_messages)
             with dspy.context(lm=model):
                 out = await response_generator.acall(
-                    transcript=past_messages,  # TODO: bound / summarize long transcripts
+                    transcript=past_messages,
                     question=question,
                     existing_categories=existing_categories,
                 )
@@ -130,6 +142,7 @@ async def run_chat(user_id):
                     {"role": "assistant", "content": response},
                 ]
             )
+            past_messages = bound_transcript(past_messages)
 
             if out.save_memory:
                 # Blocking here to show the workflow; the web app runs this

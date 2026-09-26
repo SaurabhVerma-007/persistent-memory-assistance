@@ -25,7 +25,8 @@ from mem.auth import (
     verify_password,
 )
 from mem.events import TraceRef, log_event
-from mem.response_generator import create_response_generator, model
+from mem.response_generator import bound_transcript, create_response_generator, model
+from mem.startup import validate_startup_config
 from mem.update_memory import update_memories
 from mem.vectordb import (
     create_memory_collection,
@@ -40,7 +41,6 @@ logger = logging.getLogger(__name__)
 ALLOW_SIGNUP = os.getenv("ALLOW_SIGNUP", "1") == "1"
 MAX_SESSIONS = int(os.getenv("MAX_SESSIONS", "500"))
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", "3600"))
-MAX_TRANSCRIPT_MESSAGES = int(os.getenv("MAX_TRANSCRIPT_MESSAGES", "20"))
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "10"))
 AUTH_RATE_LIMIT_PER_MINUTE = int(os.getenv("AUTH_RATE_LIMIT_PER_MINUTE", "10"))
 USERNAME_RE = re.compile(r"[A-Za-z0-9_.-]{3,32}")
@@ -48,6 +48,7 @@ USERNAME_RE = re.compile(r"[A-Za-z0-9_.-]{3,32}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await validate_startup_config()
     await create_memory_collection()
     yield
 
@@ -82,7 +83,7 @@ _hits: dict[str, deque[float]] = defaultdict(deque)
 def check_rate_limit(key: str, limit: int):
     now = time.monotonic()
     window = _hits[key]
-    while window and now - window[0] > 60:
+    while window and now - window[0] >= 60:
         window.popleft()
     if len(window) >= limit:
         raise HTTPException(status_code=429, detail="Too many requests. Slow down.")
@@ -284,7 +285,7 @@ async def chat(
                 {"role": "assistant", "content": answer},
             ]
         )
-        session.past_messages = session.past_messages[-MAX_TRANSCRIPT_MESSAGES:]
+        session.past_messages = bound_transcript(session.past_messages)
 
         await log_event(
             user_id,
@@ -354,6 +355,19 @@ async def delete_my_memory(user: dict = Depends(current_user)):
     await asyncio.to_thread(db.delete_user_events, user_id)
     sessions.pop(user_id, None)
     return {"deleted": True}
+
+
+@app.get("/api/memory/export")
+async def export_my_memories(user: dict = Depends(current_user)):
+    """Download this account's stored long-term memories as JSON."""
+    records = await fetch_all_user_records(user["user_id"])
+    records.sort(key=lambda r: r.date, reverse=True)
+    return {
+        "memories": [
+            {"text": r.memory_text, "categories": r.categories, "date": r.date}
+            for r in records
+        ]
+    }
 
 
 if __name__ == "__main__":

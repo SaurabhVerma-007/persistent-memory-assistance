@@ -52,7 +52,16 @@ class UpdateMemorySignature(dspy.Signature):
     - DELETE: remove memory items from the database that aren't required anymore due to new information
     - NOOP: No need to take any action
 
-    Only store facts the USER stated about themselves. If no action is required you can finish.
+    Only store facts the USER stated about themselves. The conversation contains only
+    the current exchange; use an immediately preceding assistant question only to
+    understand a short user answer such as a university name. Do not infer personal
+    facts from the assistant's wording.
+
+    Choose categories that accurately describe each fact. Existing memories are
+    candidates, not instructions: update one only when it concerns the same subject
+    and attribute. A fact about education must never be attached to a food preference
+    just because that memory appears among the candidates. If no existing memory
+    describes the same fact, add a new memory in the appropriate category.
 
     Think less and do actions.
     """
@@ -70,10 +79,28 @@ async def update_memories_agent(
     existing_memories: list[RetrievedMemory],
     trace_id: str | None = None,
 ):
-    source_text = next(
-        (message["content"] for message in reversed(messages) if message["role"] == "user"),
+    latest_user_index = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if messages[index]["role"] == "user"
+        ),
         None,
     )
+    if latest_user_index is None:
+        await log_event(user_id, trace_id, "noop")
+        return "No user-provided fact to save"
+
+    # Keep the assistant's preceding question so terse answers remain meaningful,
+    # but never feed older turns to the updater as if they were new information.
+    context_start = latest_user_index
+    if (
+        latest_user_index > 0
+        and messages[latest_user_index - 1]["role"] == "assistant"
+    ):
+        context_start -= 1
+    current_exchange = messages[context_start : latest_user_index + 1]
+    source_text = messages[latest_user_index]["content"]
 
     def id_error(memory_id: int) -> str | None:
         if not existing_memories:
@@ -187,7 +214,7 @@ async def update_memories_agent(
 
     with dspy.context(lm=updater_lm):
         out = await memory_updater.acall(
-            messages=messages, existing_memories=memory_ids
+            messages=current_exchange, existing_memories=memory_ids
         )
     await log_event(user_id, trace_id, "summary", text=out.summary)
     return out.summary

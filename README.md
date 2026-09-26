@@ -1,4 +1,4 @@
-# Mem0 Memory Chatbots
+# Recall Terminal — Long-Term Memory Assistant
 
 `main.py` / `web_app.py` is the primary custom implementation; `local-qdrant/` and `basic_mem0_chatbot.py` are comparison baselines against Mem0.
 

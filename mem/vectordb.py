@@ -24,6 +24,7 @@ class EmbeddedMemory(BaseModel):
     categories: list[str]
     date: str
     embedding: list[float]
+    source_text: str | None = None
 
 
 class RetrievedMemory(BaseModel):
@@ -33,6 +34,7 @@ class RetrievedMemory(BaseModel):
     categories: list[str]
     date: str
     score: float
+    source_text: str | None = None
 
 
 async def _ensure_indexes():
@@ -87,6 +89,7 @@ async def insert_memories(
                     "categories": memory.categories,
                     "memory_text": memory.memory_text,
                     "date": memory.date,
+                    "source_text": memory.source_text,
                 },
                 vector=memory.embedding,
             )
@@ -167,6 +170,7 @@ def convert_retrieved_records(point) -> RetrievedMemory:
         categories=point.payload["categories"],
         date=point.payload["date"],
         score=getattr(point, "score", 0.0) or 0.0,  # scroll results have no score
+        source_text=point.payload.get("source_text"),
     )
 
 

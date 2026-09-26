@@ -8,6 +8,7 @@ import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 import dspy
@@ -25,14 +26,18 @@ from mem.auth import (
     verify_password,
 )
 from mem.events import TraceRef, log_event
+from mem.generate_embeddings import generate_embeddings
 from mem.response_generator import bound_transcript, create_response_generator, model
 from mem.startup import validate_startup_config
 from mem.update_memory import update_memories
 from mem.vectordb import (
+    EmbeddedMemory,
     create_memory_collection,
+    delete_records,
     delete_user_records,
     fetch_all_user_records,
     get_all_categories,
+    insert_memories,
 )
 
 BASE_DIR = Path(__file__).parent
@@ -53,7 +58,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Mem0 Memory Chatbot", lifespan=lifespan)
+app = FastAPI(title="Recall Terminal", lifespan=lifespan)
 
 
 # ---------- models ----------
@@ -74,6 +79,10 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     trace_id: str
+
+
+class MemoryUpdateRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
 
 
 # ---------- rate limiting (in-process sliding window) ----------
@@ -340,7 +349,13 @@ async def dashboard_memories(user: dict = Depends(current_user)):
     counts = await asyncio.to_thread(db.event_counts, user["user_id"])
     return {
         "memories": [
-            {"text": r.memory_text, "categories": r.categories, "date": r.date}
+            {
+                "point_id": r.point_id,
+                "text": r.memory_text,
+                "categories": r.categories,
+                "date": r.date,
+                "source_text": r.source_text,
+            }
             for r in records
         ],
         "counts": counts,
@@ -357,6 +372,45 @@ async def delete_my_memory(user: dict = Depends(current_user)):
     return {"deleted": True}
 
 
+async def _get_user_memory(user_id: int, point_id: str):
+    records = await fetch_all_user_records(user_id)
+    return next((record for record in records if record.point_id == point_id), None)
+
+
+@app.put("/api/memory/{point_id}")
+async def update_my_memory(
+    point_id: str,
+    body: MemoryUpdateRequest,
+    user: dict = Depends(current_user),
+):
+    record = await _get_user_memory(user["user_id"], point_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="Memory text cannot be empty")
+    vector = (await generate_embeddings([text], task="document"))[0]
+    updated = EmbeddedMemory(
+        user_id=record.user_id,
+        memory_text=text,
+        categories=record.categories,
+        date=datetime.now(timezone.utc).isoformat(timespec="minutes"),
+        embedding=vector,
+        source_text=record.source_text,
+    )
+    await insert_memories([updated], point_ids=[point_id])
+    return {"updated": True}
+
+
+@app.delete("/api/memory/{point_id}")
+async def delete_one_memory(point_id: str, user: dict = Depends(current_user)):
+    record = await _get_user_memory(user["user_id"], point_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    await delete_records([point_id])
+    return {"deleted": True}
+
+
 @app.get("/api/memory/export")
 async def export_my_memories(user: dict = Depends(current_user)):
     """Download this account's stored long-term memories as JSON."""
@@ -364,7 +418,12 @@ async def export_my_memories(user: dict = Depends(current_user)):
     records.sort(key=lambda r: r.date, reverse=True)
     return {
         "memories": [
-            {"text": r.memory_text, "categories": r.categories, "date": r.date}
+            {
+                "text": r.memory_text,
+                "categories": r.categories,
+                "date": r.date,
+                "source_text": r.source_text,
+            }
             for r in records
         ]
     }

@@ -70,6 +70,11 @@ async def update_memories_agent(
     existing_memories: list[RetrievedMemory],
     trace_id: str | None = None,
 ):
+    source_text = next(
+        (message["content"] for message in reversed(messages) if message["role"] == "user"),
+        None,
+    )
+
     def id_error(memory_id: int) -> str | None:
         if not existing_memories:
             return "There are no existing memories to change. Use add_memory instead."
@@ -94,6 +99,7 @@ async def update_memories_agent(
                     categories=categories,
                     date=_now(),
                     embedding=embeddings[0],
+                    source_text=source_text,
                 )
             ]
         )
@@ -125,6 +131,7 @@ async def update_memories_agent(
                     categories=categories,
                     date=_now(),
                     embedding=embeddings[0],
+                    source_text=source_text,
                 )
             ],
             point_ids=[old.point_id],

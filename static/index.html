@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MEMORY_CHAT</title>
+    <title>RECALL_TERMINAL</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=VT323&display=swap" rel="stylesheet" />
@@ -14,7 +14,7 @@
         --panel: #07110a;
         --fg: #39ff6a;        /* phosphor green */
         --ink: #c4ffd2;       /* assistant text */
-        --muted: #5fa873;
+        --muted: #8fc99e;
         --line: rgba(57, 255, 106, 0.3);
         --c-retrieve: #5fd7ff;
         --c-candidates: #9aa7ff;
@@ -37,7 +37,7 @@
         color: var(--fg);
         background: var(--bg);
         font: 400 14.5px/1.55 var(--mono);
-        text-shadow: 0 0 5px rgba(57, 255, 106, 0.25);
+        text-shadow: 0 0 3px rgba(57, 255, 106, 0.12);
       }
       /* CRT scanlines + vignette (purely visual, never blocks clicks) */
       body::after {
@@ -53,7 +53,7 @@
 
       button { font-family: inherit; font-size: inherit; cursor: pointer; text-shadow: inherit; }
       button:disabled { cursor: wait; opacity: .5; }
-      button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 1px dashed var(--fg); outline-offset: 3px; }
+      button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 1px dashed var(--fg); outline-offset: 3px; }
 
       /* square, bracketed buttons: [ like this ] */
       .primary, .ghost, .tab, .auth-tabs button {
@@ -98,38 +98,39 @@
       .auth-note::before { content: "# "; }
 
       /* ---- app ---- */
-      .wrap { width: min(1400px, 100%); margin: 0 auto; padding: 22px 20px; }
-      .top { display: flex; justify-content: space-between; align-items: end; gap: 16px; padding-bottom: 18px; }
+      #app-view { height: 100dvh; overflow: hidden; }
+      .wrap { width: min(1400px, 100%); height: 100%; margin: 0 auto; padding: 14px 20px; display: flex; flex-direction: column; }
+      .top { display: flex; justify-content: space-between; align-items: end; gap: 16px; padding-bottom: 12px; flex-shrink: 0; }
       .who { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .85rem; }
-      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-      .panel { display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 540px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 0 40px rgba(57,255,106,.06); overflow: hidden; }
-      .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); background: rgba(57,255,106,.06); }
+      .grid { display: grid; flex: 1; min-height: 0; grid-template-columns: 1fr 1fr; gap: 18px; }
+      .panel { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 0 40px rgba(57,255,106,.06); overflow: hidden; }
+      .panel-head { display: flex; flex-shrink: 0; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); background: rgba(57,255,106,.06); }
       .panel-head h2::before { content: "── "; color: var(--muted); }
       .panel-head h2::after { content: " ──"; color: var(--muted); }
       .head-actions { display: flex; align-items: center; gap: 10px; }
       .status { color: var(--muted); font-size: .8rem; }
 
       /* chat log */
-      #messages { display: flex; flex: 1; flex-direction: column; gap: 10px; overflow: auto; padding: 14px 16px; }
+      #messages { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px; overflow: auto; overscroll-behavior: contain; padding: 14px 16px; }
       .message { max-width: 100%; white-space: pre-wrap; word-break: break-word; }
       .message.user { color: var(--fg); }
       .message.user::before { content: "> "; color: var(--muted); }
       .message.assistant { color: var(--ink); }
       .message.assistant::before { content: "ai: "; color: var(--muted); }
       .empty { margin: auto; max-width: 420px; color: var(--muted); text-align: center; line-height: 1.6; }
-      #chat-form { display: flex; align-items: flex-start; gap: 8px; border-top: 1px dashed var(--line); padding: 10px 14px; }
+      #chat-form { display: flex; flex-shrink: 0; align-items: flex-start; gap: 8px; border-top: 1px dashed var(--line); padding: 10px 14px; background: var(--panel); }
       .prompt { padding-top: 5px; color: var(--fg); font-weight: 700; }
       #chat-form textarea { min-height: 34px; max-height: 140px; resize: vertical; padding: 5px 0; }
 
       /* stats */
-      .stats { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px 4px; }
+      .stats { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 8px; padding: 12px 14px 4px; }
       .stat { display: flex; align-items: baseline; gap: 8px; padding: 3px 10px; border: 1px solid var(--line); }
       .stat span { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
       .stat b { font-weight: 700; font-size: 1.05rem; }
       .stat.add b { color: var(--c-add); } .stat.update b { color: var(--c-update); }
       .stat.delete b { color: var(--c-delete); } .stat.retrieve b { color: var(--c-retrieve); }
-      .tabs { display: flex; gap: 4px; padding: 10px 14px 0; }
-      .scroll { flex: 1; overflow: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+      .tabs { display: flex; flex-shrink: 0; gap: 4px; padding: 10px 14px 0; }
+      .scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
 
       /* activity log */
       .group { flex-shrink: 0; border: 1px solid var(--line); overflow: hidden; }
@@ -159,14 +160,51 @@
       .mem-list li span:first-child { flex: 1; }
       .score { flex-shrink: 0; color: var(--c-retrieve); font-variant-numeric: tabular-nums; }
 
-      .mem-card { flex-shrink: 0; padding: 8px 10px; border: 1px solid var(--line); }
-      .mem-card .date { margin-top: 4px; color: var(--muted); font-size: .74rem; }
+      .scope-note { flex-shrink: 0; padding: 4px 14px 0; color: var(--muted); font-size: .73rem; }
+      .store-tools { display: flex; flex-shrink: 0; gap: 8px; padding: 10px 14px 0; }
+      .store-tools input, .store-tools select { min-width: 0; padding: 6px 8px; color: var(--ink); background: #07110a; border: 1px solid var(--line); font: inherit; }
+      .store-tools input { flex: 1; }
+      .store-tools select { max-width: 13rem; }
+      .mem-card { flex-shrink: 0; padding: 10px; border: 1px solid var(--line); }
+      .mem-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+      .mem-card .date, .mem-source { margin-top: 6px; color: var(--muted); font-size: .74rem; }
+      .mem-source { border-left: 1px solid var(--line); padding-left: 8px; }
+      .mem-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+      .mem-actions .danger { color: #ff8079; }
+      .mem-edit { display: grid; gap: 8px; }
+      .mem-edit textarea { min-height: 72px; padding: 7px; border: 1px solid var(--line); resize: vertical; }
+      .memory-count { color: var(--muted); font-size: .75rem; }
+      .mobile-tabs { display: none; }
+      .notice { position: fixed; z-index: 10000; right: 20px; bottom: 16px; max-width: min(520px, calc(100vw - 40px)); padding: 9px 12px; color: var(--ink); background: #07110a; border: 1px solid var(--fg); box-shadow: 0 0 20px rgba(57,255,106,.16); }
+      .notice:empty { display: none; }
 
       @media (max-width: 900px) {
-        .grid { grid-template-columns: 1fr; }
-        .panel { height: 80vh; }
-        .top { flex-direction: column; align-items: start; }
+        .wrap { padding: 10px 12px; }
+        .top { align-items: center; gap: 8px; padding-bottom: 8px; }
+        .top h1 { font-size: clamp(2rem, 9vw, 3.2rem); }
+        .mobile-tabs { display: flex; flex-shrink: 0; gap: 6px; padding-bottom: 8px; }
+        .grid { grid-template-columns: 1fr; gap: 0; }
+        .grid[data-mobile-panel="chat"] #memory-panel,
+        .grid[data-mobile-panel="memory"] #chat-panel { display: none; }
+        .who { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+        .head-actions { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+        .status { display: block; width: 100%; text-align: right; font-size: .68rem; line-height: 1.2; }
+        .panel-head { padding: 7px 9px; }
+        .stats { padding-left: 9px; padding-right: 9px; gap: 5px; }
+        .stat { padding: 3px 6px; gap: 5px; }
+        .tabs { padding-left: 9px; }
+        .store-tools { padding-left: 9px; padding-right: 9px; }
       }
+      @media (max-width: 440px) {
+        .eyebrow { font-size: .68rem; }
+        .top h1 { font-size: 1.9rem; }
+        .who { font-size: .72rem; }
+        .store-tools { flex-wrap: wrap; }
+        .store-tools select { max-width: none; width: 100%; }
+        #chat-form { padding: 8px; gap: 5px; }
+        #chat-form .primary { padding-left: 3px; padding-right: 3px; }
+      }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
     </style>
   </head>
   <body>
@@ -174,7 +212,7 @@
     <div id="auth-view" class="auth hidden">
       <div class="auth-card">
         <p class="eyebrow">long-term memory terminal</p>
-        <h1>MEMORY_CHAT<span class="cursor">█</span></h1>
+        <h1>RECALL<span class="cursor">█</span></h1>
         <div class="auth-tabs">
           <button type="button" class="active" data-auth-mode="login">sign in</button>
           <button type="button" data-auth-mode="signup">create account</button>
@@ -195,18 +233,23 @@
         <header class="top">
           <div>
             <p class="eyebrow">long-term memory terminal</p>
-            <h1>MEMORY_CHAT<span class="cursor">█</span></h1>
+            <h1>RECALL<span class="cursor">█</span></h1>
           </div>
           <div class="who"><span id="who"></span><button id="logout" class="ghost" type="button">sign out</button></div>
         </header>
 
-        <div class="grid">
+        <nav class="mobile-tabs" aria-label="Dashboard panels">
+          <button class="tab active" type="button" data-mobile-panel="chat" aria-pressed="true">chat</button>
+          <button class="tab" type="button" data-mobile-panel="memory" aria-pressed="false">memory dashboard</button>
+        </nav>
+
+        <div class="grid" data-mobile-panel="chat">
           <!-- chat -->
-          <section class="panel" aria-label="Chat">
+          <section class="panel" id="chat-panel" aria-label="Chat">
             <div class="panel-head">
               <h2>chat</h2>
               <div class="head-actions">
-                <span class="status" id="status">ready.</span>
+                <span class="status" id="status" aria-live="polite">ready.</span>
                 <button id="new-chat" class="ghost" type="button">new conversation</button>
               </div>
             </div>
@@ -219,28 +262,37 @@
           </section>
 
           <!-- dashboard -->
-          <section class="panel" aria-label="Memory dashboard">
+          <section class="panel" id="memory-panel" aria-label="Memory dashboard">
             <div class="panel-head">
               <h2>memory dashboard</h2>
               <button id="forget" class="ghost" type="button">clear my memory</button>
             </div>
             <div class="stats">
-              <div class="stat"><span>memories</span><b id="stat-memories">0</b></div>
+              <div class="stat"><span>stored now</span><b id="stat-memories">0</b></div>
               <div class="stat retrieve"><span>retrieved</span><b id="stat-retrieve">0</b></div>
               <div class="stat add"><span>added</span><b id="stat-add">0</b></div>
               <div class="stat update"><span>updated</span><b id="stat-update">0</b></div>
               <div class="stat delete"><span>deleted</span><b id="stat-delete">0</b></div>
             </div>
-            <div class="tabs">
-              <button class="tab active" type="button" data-tab="activity">live activity</button>
-              <button class="tab" type="button" data-tab="store">memory store</button>
+            <p class="scope-note">Stored is the current total; action counts cover assistant activity since your last memory clear.</p>
+            <div class="tabs" role="tablist" aria-label="Memory dashboard views">
+              <button class="tab active" type="button" role="tab" aria-selected="true" aria-controls="activity" data-tab="activity">live activity</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="store" data-tab="store">memory store</button>
             </div>
-            <div id="activity" class="scroll"></div>
-            <div id="store" class="scroll hidden"></div>
+            <div id="activity" class="scroll" role="tabpanel" aria-label="Live activity"></div>
+            <div class="store-tools hidden" id="store-tools">
+              <input id="memory-search" type="search" placeholder="search memories" aria-label="Search memories" />
+              <select id="memory-category" aria-label="Filter memories by category">
+                <option value="">all categories</option>
+              </select>
+              <span id="memory-count" class="memory-count" aria-live="polite"></span>
+            </div>
+            <div id="store" class="scroll hidden" role="tabpanel" aria-label="Memory store"></div>
           </section>
         </div>
       </div>
     </div>
+    <div id="notice" class="notice" role="status" aria-live="polite"></div>
 
     <script>
       const $ = (s) => document.querySelector(s);
@@ -253,6 +305,12 @@
         return e;
       }
       function note(text) { return el("p", "empty", text); }
+      function showNotice(text) {
+        const notice = $("#notice");
+        notice.textContent = text;
+        clearTimeout(noticeTimer);
+        noticeTimer = setTimeout(() => { notice.textContent = ""; }, 5000);
+      }
 
       const CHAT_EMPTY = "Tell me something about yourself, then ask about it later. Start a new conversation and ask again: the memory stays.";
       const ACTIVITY_EMPTY = "Activity appears here as the assistant searches, adds, updates and deletes memories.";
@@ -262,6 +320,8 @@
       let pollTimer = null;
       let polling = false;
       const groups = new Map();
+      let memoryRecords = [];
+      let noticeTimer = null;
 
       /* ---------- api ---------- */
       async function api(path, options = {}) {
@@ -340,6 +400,10 @@
         $("#messages").replaceChildren(note(CHAT_EMPTY));
         $("#activity").replaceChildren(note(ACTIVITY_EMPTY));
         $("#store").replaceChildren();
+        memoryRecords = [];
+        $("#memory-search").value = "";
+        $("#memory-category").replaceChildren(new Option("all categories", ""));
+        $("#memory-count").textContent = "";
         ["memories", "retrieve", "add", "update", "delete"].forEach((k) => ($(`#stat-${k}`).textContent = "0"));
         $("#status").textContent = "ready.";
       }
@@ -398,29 +462,48 @@
           await api("/api/chat/reset", { method: "POST" });
           $("#messages").replaceChildren(note("New conversation. Long-term memory is kept: ask about something you told me earlier."));
           $("#status").textContent = "conversation reset.";
+          showNotice("New conversation started. Your saved memories are still available.");
         } catch {}
       });
 
       $("#forget").addEventListener("click", async () => {
-        if (!confirm("Delete everything I remember about you, and the activity log?")) return;
+        const stored = Number($("#stat-memories").textContent) || 0;
+        if (!confirm(`This removes ${stored} stored ${stored === 1 ? "memory" : "memories"}, your assistant activity history, and your current chat transcript. Your account will remain. Continue?`)) return;
         $("#forget").disabled = true;
         try {
           await api("/api/memory", { method: "DELETE" });
           resetState();
           $("#status").textContent = "memory cleared.";
+          showNotice(`Cleared ${stored} ${stored === 1 ? "memory" : "memories"}, activity history, and this conversation.`);
         } catch (err) {
           $("#status").textContent = "could not clear memory.";
+          showNotice(`Could not clear memory: ${err.message}`);
         } finally {
           $("#forget").disabled = false;
         }
       });
 
       /* ---------- dashboard ---------- */
-      document.querySelectorAll(".tab").forEach((t) =>
+      document.querySelectorAll("[data-tab]").forEach((t) =>
         t.addEventListener("click", () => {
-          document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
+          document.querySelectorAll("[data-tab]").forEach((x) => {
+            x.classList.toggle("active", x === t);
+            x.setAttribute("aria-selected", String(x === t));
+          });
           $("#activity").classList.toggle("hidden", t.dataset.tab !== "activity");
           $("#store").classList.toggle("hidden", t.dataset.tab !== "store");
+          $("#store-tools").classList.toggle("hidden", t.dataset.tab !== "store");
+        }));
+
+      document.querySelectorAll(".mobile-tabs [data-mobile-panel]").forEach((button) =>
+        button.addEventListener("click", () => {
+          const selected = button.dataset.mobilePanel;
+          $(".grid").dataset.mobilePanel = selected;
+          document.querySelectorAll(".mobile-tabs [data-mobile-panel]").forEach((tab) => {
+            const active = tab.dataset.mobilePanel === selected;
+            tab.classList.toggle("active", active);
+            tab.setAttribute("aria-pressed", String(active));
+          });
         }));
 
       function chips(list) {
@@ -542,29 +625,127 @@
         }
       }
 
+      function renderMemories() {
+        const store = $("#store");
+        const scrollTop = store.scrollTop;
+        const query = $("#memory-search").value.trim().toLocaleLowerCase();
+        const category = $("#memory-category").value;
+        const filtered = memoryRecords.filter((memory) => {
+          const content = `${memory.text} ${(memory.categories || []).join(" ")}`.toLocaleLowerCase();
+          return (!query || content.includes(query)) &&
+            (!category || (memory.categories || []).includes(category));
+        });
+        store.replaceChildren();
+        $("#memory-count").textContent = `${filtered.length} / ${memoryRecords.length}`;
+        if (!filtered.length) {
+          store.appendChild(note(memoryRecords.length
+            ? "No memories match those filters."
+            : "No memories stored yet. Tell the assistant something about yourself."));
+          store.scrollTop = scrollTop;
+          return;
+        }
+        filtered.forEach((memory) => store.appendChild(memoryCard(memory)));
+        store.scrollTop = scrollTop;
+      }
+
+      function memoryCard(memory) {
+        const card = el("article", "mem-card");
+        card.appendChild(el("div", "mem-text", memory.text));
+        card.appendChild(chips(memory.categories));
+        const d = new Date(memory.date);
+        card.appendChild(el("div", "date", `last saved: ${isNaN(d) ? memory.date : d.toLocaleString()}`));
+        if (memory.source_text) {
+          const source = el("div", "mem-source");
+          source.append(el("span", "", "assistant save context: "), el("q", "", memory.source_text));
+          card.appendChild(source);
+        } else {
+          card.appendChild(el("div", "mem-source", "save context unavailable for this older memory"));
+        }
+
+        const actions = el("div", "mem-actions");
+        const edit = el("button", "ghost", "edit");
+        edit.type = "button";
+        edit.setAttribute("aria-label", `Edit memory: ${memory.text}`);
+        edit.addEventListener("click", () => beginMemoryEdit(card, memory));
+        const remove = el("button", "ghost danger", "forget");
+        remove.type = "button";
+        remove.setAttribute("aria-label", `Forget memory: ${memory.text}`);
+        remove.addEventListener("click", async () => {
+          if (!confirm(`Forget only this memory?\n\n“${memory.text}”`)) return;
+          remove.disabled = true;
+          try {
+            await api(`/api/memory/${encodeURIComponent(memory.point_id)}`, { method: "DELETE" });
+            memoryRecords = memoryRecords.filter((item) => item.point_id !== memory.point_id);
+            renderMemories();
+            $("#stat-memories").textContent = String(memoryRecords.length);
+            showNotice("Memory forgotten.");
+          } catch (err) {
+            remove.disabled = false;
+            showNotice(`Could not forget memory: ${err.message}`);
+          }
+        });
+        actions.append(edit, remove);
+        card.appendChild(actions);
+        return card;
+      }
+
+      function beginMemoryEdit(card, memory) {
+        const form = el("form", "mem-edit");
+        const input = el("textarea");
+        input.value = memory.text;
+        input.maxLength = 4000;
+        input.setAttribute("aria-label", "Edit saved memory");
+        const actions = el("div", "mem-actions");
+        const cancel = el("button", "ghost", "cancel");
+        cancel.type = "button";
+        cancel.addEventListener("click", () => card.replaceWith(memoryCard(memory)));
+        const save = el("button", "primary", "save");
+        save.type = "submit";
+        actions.append(cancel, save);
+        form.append(input, actions);
+        card.replaceChildren(form);
+        input.focus();
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const text = input.value.trim();
+          if (!text) { input.focus(); return; }
+          save.disabled = true;
+          try {
+            await api(`/api/memory/${encodeURIComponent(memory.point_id)}`, {
+              method: "PUT",
+              body: JSON.stringify({ text }),
+            });
+            memory.text = text;
+            memory.date = new Date().toISOString();
+            renderMemories();
+            showNotice("Memory updated and re-indexed for search.");
+          } catch (err) {
+            save.disabled = false;
+            showNotice(`Could not update memory: ${err.message}`);
+          }
+        });
+      }
+
+      $("#memory-search").addEventListener("input", renderMemories);
+      $("#memory-category").addEventListener("change", renderMemories);
+
       async function loadMemories() {
         try {
           const { memories, counts } = await api("/api/dashboard/memories");
+          memoryRecords = memories;
           $("#stat-memories").textContent = memories.length;
           $("#stat-retrieve").textContent = counts.retrieve || 0;
           $("#stat-add").textContent = counts.add || 0;
           $("#stat-update").textContent = counts.update || 0;
           $("#stat-delete").textContent = counts.delete || 0;
 
-          const store = $("#store");
-          store.replaceChildren();
-          if (!memories.length) {
-            store.appendChild(note("No memories stored yet. Tell the assistant something about yourself."));
-            return;
-          }
-          memories.forEach((m) => {
-            const card = el("div", "mem-card");
-            card.appendChild(el("div", "", m.text));
-            card.appendChild(chips(m.categories));
-            const d = new Date(m.date);
-            card.appendChild(el("div", "date", isNaN(d) ? m.date : d.toLocaleString()));
-            store.appendChild(card);
-          });
+          const categories = [...new Set(memories.flatMap((memory) => memory.categories || []))].sort();
+          const categorySelect = $("#memory-category");
+          const selectedCategory = categorySelect.value;
+          categorySelect.replaceChildren(new Option("all categories", ""));
+          categories.forEach((category) => categorySelect.add(new Option(category, category)));
+          if (categories.includes(selectedCategory)) categorySelect.value = selectedCategory;
+          renderMemories();
         } catch {}
       }
 

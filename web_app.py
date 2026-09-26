@@ -27,7 +27,12 @@ from mem.auth import (
 )
 from mem.events import TraceRef, log_event
 from mem.generate_embeddings import generate_embeddings
-from mem.response_generator import bound_transcript, create_response_generator, model
+from mem.response_generator import (
+    bound_transcript,
+    create_response_generator,
+    model,
+    retrieve_relevant_memories,
+)
 from mem.startup import validate_startup_config
 from mem.update_memory import update_memories
 from mem.vectordb import (
@@ -38,6 +43,7 @@ from mem.vectordb import (
     fetch_all_user_records,
     get_all_categories,
     insert_memories,
+    stringify_retrieved_point,
 )
 
 BASE_DIR = Path(__file__).parent
@@ -253,11 +259,20 @@ async def chat(
         trace_id = uuid.uuid4().hex[:12]
         session.trace.id = trace_id
         try:
+            retrieved_memories = await retrieve_relevant_memories(
+                user_id=user_id,
+                search_text=question,
+                trace_id=trace_id,
+            )
             with dspy.context(lm=model):
                 result = await session.response_generator.acall(
                     transcript=session.past_messages,
                     question=question,
                     existing_categories=session.existing_categories,
+                    retrieved_memories=[
+                        stringify_retrieved_point(memory)
+                        for memory in retrieved_memories
+                    ],
                 )
         except Exception as e:
             logger.exception("Chat generation failed")
